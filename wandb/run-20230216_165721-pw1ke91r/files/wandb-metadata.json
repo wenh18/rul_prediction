@@ -1,0 +1,48 @@
+{
+    "os": "Windows-10-10.0.19044-SP0",
+    "python": "3.8.15",
+    "heartbeatAt": "2023-02-16T08:57:22.315427",
+    "startedAt": "2023-02-16T08:57:21.015389",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "main.py",
+    "codePath": "main.py",
+    "host": "Win10_LTSC",
+    "username": "admin",
+    "executable": "C:\\Users\\admin\\anaconda3\\envs\\battery\\python.exe",
+    "cpu_count": 16,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 3200.0,
+        "min": 0.0,
+        "max": 3200.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3200.0,
+            "min": 0.0,
+            "max": 3200.0
+        }
+    ],
+    "disk": {
+        "total": 415.06933212280273,
+        "used": 370.2725067138672
+    },
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 2,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3090",
+            "memory_total": 25769803776
+        },
+        {
+            "name": "NVIDIA GeForce RTX 3090",
+            "memory_total": 25769803776
+        }
+    ],
+    "memory": {
+        "total": 63.79673767089844
+    }
+}

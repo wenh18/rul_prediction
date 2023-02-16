@@ -1,0 +1,14 @@
+
+(79923, 100, 13) (79923, 3) (220, 100, 13) (220, 3)
+training epoch: 0
+step: 0 train loss: 0.029605864 0.029605864
+Traceback (most recent call last):
+  File "main.py", line 196, in <module>
+    model, train_loss, valid_loss, total_loss = trainer.train(train_loader, valid_loader, relationmodel=relationmodel, encoder=encoder, wandb=wandb)
+  File "D:\battery\utils.py", line 335, in train
+    loss.backward()
+  File "C:\Users\admin\anaconda3\envs\battery\lib\site-packages\torch\_tensor.py", line 487, in backward
+    torch.autograd.backward(
+  File "C:\Users\admin\anaconda3\envs\battery\lib\site-packages\torch\autograd\__init__.py", line 197, in backward
+    Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+KeyboardInterrupt

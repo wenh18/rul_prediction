@@ -1,0 +1,90 @@
+2023-02-16 19:18:17,435 INFO    StreamThr :10792 [internal.py:wandb_internal():87] W&B internal server running at pid: 10792, started at: 2023-02-16 19:18:17.435944
+2023-02-16 19:18:17,437 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status
+2023-02-16 19:18:17,442 INFO    WriterThread:10792 [datastore.py:open_for_write():85] open: D:\battery\wandb\run-20230216_191817-am6qymuc\run-am6qymuc.wandb
+2023-02-16 19:18:17,443 DEBUG   SenderThread:10792 [sender.py:send():336] send: header
+2023-02-16 19:18:17,443 DEBUG   SenderThread:10792 [sender.py:send():336] send: run
+2023-02-16 19:18:18,210 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: check_version
+2023-02-16 19:18:18,210 INFO    SenderThread:10792 [dir_watcher.py:__init__():216] watching files in: D:\battery\wandb\run-20230216_191817-am6qymuc\files
+2023-02-16 19:18:18,210 INFO    SenderThread:10792 [sender.py:_start_run_threads():1067] run started: am6qymuc with start time 1676546297.435944
+2023-02-16 19:18:18,210 DEBUG   SenderThread:10792 [sender.py:send_request():363] send_request: summary_record
+2023-02-16 19:18:18,211 INFO    SenderThread:10792 [sender.py:_save_file():1321] saving file wandb-summary.json with policy end
+2023-02-16 19:18:18,211 DEBUG   SenderThread:10792 [sender.py:send_request():363] send_request: check_version
+2023-02-16 19:18:19,090 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: run_start
+2023-02-16 19:18:19,105 DEBUG   HandlerThread:10792 [system_info.py:__init__():31] System info init
+2023-02-16 19:18:19,105 DEBUG   HandlerThread:10792 [system_info.py:__init__():46] System info init done
+2023-02-16 19:18:19,105 INFO    HandlerThread:10792 [system_monitor.py:start():151] Starting system monitor
+2023-02-16 19:18:19,105 INFO    SystemMonitor:10792 [system_monitor.py:_start():116] Starting system asset monitoring threads
+2023-02-16 19:18:19,105 INFO    HandlerThread:10792 [system_monitor.py:probe():172] Collecting system info
+2023-02-16 19:18:19,107 INFO    SystemMonitor:10792 [interfaces.py:start():168] Started cpu
+2023-02-16 19:18:19,108 INFO    SystemMonitor:10792 [interfaces.py:start():168] Started disk
+2023-02-16 19:18:19,108 INFO    SystemMonitor:10792 [interfaces.py:start():168] Started gpu
+2023-02-16 19:18:19,110 INFO    SystemMonitor:10792 [interfaces.py:start():168] Started memory
+2023-02-16 19:18:19,115 INFO    SystemMonitor:10792 [interfaces.py:start():168] Started network
+2023-02-16 19:18:19,148 DEBUG   HandlerThread:10792 [system_info.py:probe():195] Probing system
+2023-02-16 19:18:19,148 DEBUG   HandlerThread:10792 [system_info.py:probe():241] Probing system done
+2023-02-16 19:18:19,148 DEBUG   HandlerThread:10792 [system_monitor.py:probe():181] {'os': 'Windows-10-10.0.19044-SP0', 'python': '3.8.15', 'heartbeatAt': '2023-02-16T11:18:19.148994', 'startedAt': '2023-02-16T11:18:17.420890', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': 'D:\\battery\\main.py', 'codePath': 'main.py', 'host': 'Win10_LTSC', 'username': 'admin', 'executable': 'C:\\Users\\admin\\anaconda3\\envs\\battery\\python.exe', 'cpu_count': 16, 'cpu_count_logical': 24, 'cpu_freq': {'current': 3200.0, 'min': 0.0, 'max': 3200.0}, 'cpu_freq_per_core': [{'current': 3200.0, 'min': 0.0, 'max': 3200.0}], 'disk': {'total': 415.06933212280273, 'used': 368.7589988708496}, 'gpu': 'NVIDIA GeForce RTX 3090', 'gpu_count': 2, 'gpu_devices': [{'name': 'NVIDIA GeForce RTX 3090', 'memory_total': 25769803776}, {'name': 'NVIDIA GeForce RTX 3090', 'memory_total': 25769803776}], 'memory': {'total': 63.79673767089844}}
+2023-02-16 19:18:19,148 INFO    HandlerThread:10792 [system_monitor.py:probe():182] Finished collecting system info
+2023-02-16 19:18:19,148 INFO    HandlerThread:10792 [system_monitor.py:probe():185] Publishing system info
+2023-02-16 19:18:19,148 DEBUG   HandlerThread:10792 [system_info.py:_save_pip():51] Saving list of pip packages installed into the current environment
+2023-02-16 19:18:19,150 DEBUG   HandlerThread:10792 [system_info.py:_save_pip():67] Saving pip packages done
+2023-02-16 19:18:19,150 DEBUG   HandlerThread:10792 [system_info.py:_save_conda():74] Saving list of conda packages installed into the current environment
+2023-02-16 19:18:19,150 ERROR   HandlerThread:10792 [system_info.py:_save_conda():85] Error saving conda packages: [WinError 2] 系统找不到指定的文件。
+Traceback (most recent call last):
+  File "C:\Users\admin\anaconda3\envs\battery\lib\site-packages\wandb\sdk\internal\system\system_info.py", line 81, in _save_conda
+    subprocess.call(
+  File "C:\Users\admin\anaconda3\envs\battery\lib\subprocess.py", line 340, in call
+    with Popen(*popenargs, **kwargs) as p:
+  File "C:\Users\admin\anaconda3\envs\battery\lib\subprocess.py", line 858, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "C:\Users\admin\anaconda3\envs\battery\lib\subprocess.py", line 1311, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+2023-02-16 19:18:19,161 DEBUG   HandlerThread:10792 [system_info.py:_save_conda():86] Saving conda packages done
+2023-02-16 19:18:19,162 INFO    HandlerThread:10792 [system_monitor.py:probe():187] Finished publishing system info
+2023-02-16 19:18:19,166 DEBUG   SenderThread:10792 [sender.py:send():336] send: files
+2023-02-16 19:18:19,166 INFO    SenderThread:10792 [sender.py:_save_file():1321] saving file wandb-metadata.json with policy now
+2023-02-16 19:18:19,170 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: stop_status
+2023-02-16 19:18:19,170 DEBUG   SenderThread:10792 [sender.py:send_request():363] send_request: stop_status
+2023-02-16 19:18:19,226 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_created():275] file/dir created: D:\battery\wandb\run-20230216_191817-am6qymuc\files\wandb-summary.json
+2023-02-16 19:18:19,226 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_created():275] file/dir created: D:\battery\wandb\run-20230216_191817-am6qymuc\files\wandb-metadata.json
+2023-02-16 19:18:19,226 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_created():275] file/dir created: D:\battery\wandb\run-20230216_191817-am6qymuc\files\requirements.txt
+2023-02-16 19:18:19,226 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_created():275] file/dir created: D:\battery\wandb\run-20230216_191817-am6qymuc\files\conda-environment.yaml
+2023-02-16 19:18:19,524 DEBUG   SenderThread:10792 [sender.py:send():336] send: telemetry
+2023-02-16 19:18:20,098 INFO    wandb-upload_0:10792 [upload_job.py:push():138] Uploaded file C:\Users\admin\AppData\Local\Temp\tmp0xsdglx_wandb\7v749tnh-wandb-metadata.json
+2023-02-16 19:18:20,227 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_created():275] file/dir created: D:\battery\wandb\run-20230216_191817-am6qymuc\files\output.log
+2023-02-16 19:18:22,250 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_modified():292] file/dir modified: D:\battery\wandb\run-20230216_191817-am6qymuc\files\output.log
+2023-02-16 19:18:22,829 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:24,278 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_modified():292] file/dir modified: D:\battery\wandb\run-20230216_191817-am6qymuc\files\output.log
+2023-02-16 19:18:24,919 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: partial_history
+2023-02-16 19:18:24,920 DEBUG   SenderThread:10792 [sender.py:send():336] send: history
+2023-02-16 19:18:24,920 DEBUG   SenderThread:10792 [sender.py:send_request():363] send_request: summary_record
+2023-02-16 19:18:24,921 INFO    SenderThread:10792 [sender.py:_save_file():1321] saving file wandb-summary.json with policy end
+2023-02-16 19:18:25,284 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_modified():292] file/dir modified: D:\battery\wandb\run-20230216_191817-am6qymuc\files\wandb-summary.json
+2023-02-16 19:18:26,285 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_modified():292] file/dir modified: D:\battery\wandb\run-20230216_191817-am6qymuc\files\output.log
+2023-02-16 19:18:27,953 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:32,964 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:34,172 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:34,172 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:37,978 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:39,200 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:43,042 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:44,237 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:48,067 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:49,264 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:49,421 INFO    Thread-13 :10792 [dir_watcher.py:_on_file_modified():292] file/dir modified: D:\battery\wandb\run-20230216_191817-am6qymuc\files\config.yaml
+2023-02-16 19:18:53,470 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:54,281 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:18:58,493 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:18:59,306 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:19:03,533 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:19:04,326 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:19:08,564 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:19:09,343 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:19:13,600 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:19:14,384 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:19:18,619 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:19:19,129 DEBUG   SystemMonitor:10792 [system_monitor.py:_start():130] Starting system metrics aggregation loop
+2023-02-16 19:19:19,129 DEBUG   SenderThread:10792 [sender.py:send():336] send: stats
+2023-02-16 19:19:19,398 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
+2023-02-16 19:19:24,156 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: status_report
+2023-02-16 19:19:24,428 DEBUG   HandlerThread:10792 [handler.py:handle_request():144] handle_request: keepalive
