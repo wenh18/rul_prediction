@@ -18,6 +18,7 @@ import utils
 import dataloader
 # from attmodels import make_model
 from vitmodels import ViT, RelationNetwork, weights_init, lstm_encoder, FFNEncoder
+import load_ne
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -29,13 +30,16 @@ from torch.utils.data.sampler import RandomSampler
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 '''below is the order when we do not want to upload training log to cloud'''
-# os.environ['WANDB_MODE'] = 'offline'
+os.environ['WANDB_MODE'] = 'offline'
 import wandb
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 import warnings
+
+from load_ne import get_train_test_val
+get_train_test_val()
 
 warnings.filterwarnings('ignore')
 FROM_SCRATCH = True
@@ -54,93 +58,92 @@ i_upp = 5498
 pkl_dir = './our_data/'
 pkl_list = os.listdir(pkl_dir)
 # pkl_list = sorted(pkl_list, key=lambda x: int(x.split('-')[0]) * 10 + int(x[-5]))
-'''below: useful'''
-# train_name = []
-# for name in pkl_list:
-#     train_name.append(name[:-4])
-# all_series = dict()
-# print('----init_train----')
-# for name in train_name:
-#     # print(name)
-#     # tmp_fea, tmp_lbl = dataloader.get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor)
-#     tmp_fea = dataloader.get_xyv2(name, n_cyc, i_low, i_upp, v_low, v_upp, q_low, q_upp, rul_factor,
-#                                          cap_factor, pkl_dir)
-#     all_series.update({name: {'fea': tmp_fea}})
-'''end for useful'''
-# import pdb;pdb.set_trace()
-
-new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
-new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
-             '5-4', '8-7', '7-7', '4-4', '1-3', '7-1', '5-2', '6-4', '9-8', '9-5', '6-3', '10-8', '1-6', '3-5',
-             '2-6', '3-8', '3-6', '4-8', '7-8', '5-1', '2-8', '8-2', '1-5', '7-3', '10-2', '5-5', '9-2', '5-6', '1-7',
-             '8-3', '4-1', '4-2', '1-4', '6-5', ]
-new_test = ['9-6', '4-5', '1-2', '10-7', '1-1', '6-1', '6-6', '9-4', '10-4', '8-5', '5-3', '10-6',
-            '2-5', '6-2', '3-1', '8-8', '8-1', '8-6', '7-6', '6-8', '7-5', '10-1']
-
-train_fea, train_ruls, train_batteryids = [], [], []
 seq_len = 100
 series_lens = [100]
 
 batch_size = 32
 valida_batch_size = 1
-seriesnum=1500
-scale_ratios = [1, 2, 3, 4] # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
-except_ratios = [[1, 2], [2, 1],
-                 [2, 2],
-                 [1, 3], [3, 1], [3, 3],
-                 [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]
-parts_num_per_ratio=240
+seriesnum = 1000
+scale_ratios = [1, 2]#, 3, 4]  # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
+except_ratios = [[2, 2]]
+# except_ratios = [[1, 2], [2, 1],
+#                  [2, 2],
+#                  [1, 3], [3, 1], [3, 3],
+#                  [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]
+parts_num_per_ratio = 240
 valid_max_len = 10
-wandb.init(project='battery_rul_predict',
+
+OURDATA = False
+
+wandb.init(project='ne',
            config={
-                'batch_size': 32,
-                'valida_batch_size': 1,
-                'seriesnum':1000,
-                'scale_ratios' : '[1, 2, 3]', # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
-                'except_ratios' : '[[1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]',
-                'parts_num_per_ratio':240,
-                'valid_max_len': 10
+               'batch_size': 32,
+               'valida_batch_size': 1,
+               'seriesnum': 1000,
+               'scale_ratios': '[1, 2, 3]',  # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
+               'except_ratios': '[[1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]',
+               'parts_num_per_ratio': 240,
+               'valid_max_len': 10
            }
-        )
+           )
 
+if OURDATA:
+    new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
+    new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
+                 '5-4', '8-7', '7-7', '4-4', '1-3', '7-1', '5-2', '6-4', '9-8', '9-5', '6-3', '10-8', '1-6', '3-5',
+                 '2-6', '3-8', '3-6', '4-8', '7-8', '5-1', '2-8', '8-2', '1-5', '7-3', '10-2', '5-5', '9-2', '5-6', '1-7',
+                 '8-3', '4-1', '4-2', '1-4', '6-5', ]
+    new_test = ['9-6', '4-5', '1-2', '10-7', '1-1', '6-1', '6-6', '9-4', '10-4', '8-5', '5-3', '10-6',
+                '2-5', '6-2', '3-1', '8-8', '8-1', '8-6', '7-6', '6-8', '7-5', '10-1']
 
-batteryid = 0
-for name in new_train + new_valid:
-    # tmp_fea, tmp_lbl = dataloader.get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor)
-    tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens, i_low, i_upp, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor, pkl_dir, raw_features=False, seriesnum=seriesnum)
-    train_fea.append(tmp_fea)
-    train_ruls.append(tmp_lbl)
-    train_batteryids += [batteryid for _ in range(tmp_fea.shape[0])]
-    batteryid += 1
+    train_fea, train_ruls, train_batteryids = [], [], []
 
-retrieval_set = {}
-batteryid = 0
-for name in new_train + new_valid:
-    retrieval_set[batteryid] = dataloader.get_retrieval_seq(name, pkl_dir, rul_factor, seriesnum=seriesnum)
-    batteryid += 1
+    batteryid = 0
+    for name in new_train + new_valid:
+        # tmp_fea, tmp_lbl = dataloader.get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor)
+        tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens, i_low, i_upp, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor, pkl_dir, raw_features=False, seriesnum=seriesnum)
+        train_fea.append(tmp_fea)
+        train_ruls.append(tmp_lbl)
+        train_batteryids += [batteryid for _ in range(tmp_fea.shape[0])]
+        batteryid += 1
 
-train_fea = np.vstack(train_fea)
-train_ruls = np.vstack(train_ruls)
-# import pdb;pdb.set_trace()
-train_batteryids = np.array(train_batteryids)
-train_batteryids = train_batteryids.reshape((-1, 1))
-train_lbl = np.hstack((train_ruls, train_batteryids))
+    retrieval_set = {}
+    batteryid = 0
+    for name in new_train + new_valid:
+        retrieval_set[batteryid] = dataloader.get_retrieval_seq(name, pkl_dir, rul_factor, seriesnum=seriesnum*2)
+        batteryid += 1
 
-valid_fea, valid_rul, valid_batteryids = [], [], []
-valid_battery_id = 0
+    train_fea = np.vstack(train_fea)
+    train_ruls = np.vstack(train_ruls)
+    # import pdb;pdb.set_trace()
+    train_batteryids = np.array(train_batteryids)
+    train_batteryids = train_batteryids.reshape((-1, 1))
+    train_lbl = np.hstack((train_ruls, train_batteryids))
 
-for name in new_test:
-    tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens, i_low, i_upp, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor, pkl_dir, raw_features=False)
-    valid_fea.append(tmp_fea[:valid_max_len])#[::stride])
-    valid_rul.append(tmp_lbl[:valid_max_len])#[::stride])strid
-    valid_batteryids += [valid_battery_id for i in range(len(tmp_fea))][:valid_max_len]#[::e]))]
-    valid_battery_id += 1
-valid_fea = np.vstack(valid_fea)
-valid_rul = np.vstack(valid_rul)#.squeeze()
-valid_batteryids = np.array(valid_batteryids)
-valid_batteryids = valid_batteryids.reshape((-1, 1))
-valid_lbl = np.hstack((valid_rul, valid_batteryids))
+    valid_fea, valid_rul, valid_batteryids = [], [], []
+    valid_battery_id = 0
 
+    for name in new_test:
+        tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens, i_low, i_upp, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor, pkl_dir, raw_features=False)
+        valid_fea.append(tmp_fea[:valid_max_len])#[::stride])
+        valid_rul.append(tmp_lbl[:valid_max_len])#[::stride])strid
+        valid_batteryids += [valid_battery_id for i in range(len(tmp_fea))][:valid_max_len]#[::e]))]
+        valid_battery_id += 1
+    valid_fea = np.vstack(valid_fea)
+    valid_rul = np.vstack(valid_rul)#.squeeze()
+    valid_batteryids = np.array(valid_batteryids)
+    valid_batteryids = valid_batteryids.reshape((-1, 1))
+    valid_lbl = np.hstack((valid_rul, valid_batteryids))
+else:
+    train_fea, train_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
+                                                      rul_factor=rul_factor, dataset_name='trainvalid', seqnum=seriesnum)
+    # train_fea = train_fea[:seriesnum]
+    # train_lbl = train_lbl[:seriesnum]
+    valid_fea, valid_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
+                                                      rul_factor=rul_factor, dataset_name='valid', seqnum=valid_max_len)
+    # valid_fea = valid_fea[:valid_max_len]
+    # valid_lbl = valid_lbl[:valid_max_len]
+    retrieval_set = load_ne.get_retrieval_seq(rul_factor=rul_factor, seriesnum=seriesnum*2)
 print(train_fea.shape, train_lbl.shape, valid_fea.shape, valid_lbl.shape)
 
 trainset = TensorDataset(torch.Tensor(train_fea), torch.Tensor(train_lbl))
@@ -178,7 +181,7 @@ if FROM_SCRATCH:
     #     emb_dropout=0.1
     # )
     # weights_init(encoder)
-    encoder = lstm_encoder(indim=13, hiddendim=128, fcdim=128, outdim=128, n_layers=1, dropout=0.1)
+    encoder = lstm_encoder(indim=train_fea.shape[1], hiddendim=128, fcdim=128, outdim=128, n_layers=1, dropout=0.1)
     # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
     # encoder.load_state_dict(torch.load('output/scale/LSTM_scaled_b_32_225.pth'))
     relationmodel = RelationNetwork(input_size=2*encoded_feature_dim, hidden_size=512)

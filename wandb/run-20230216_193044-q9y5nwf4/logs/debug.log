@@ -22,3 +22,4 @@ config: {'batch_size': 32, 'valida_batch_size': 1, 'seriesnum': 1000, 'scale_rat
 2023-02-16 19:30:48,275 INFO    MainThread:4908 [wandb_run.py:_redirect():2034] Wrapping output streams.
 2023-02-16 19:30:48,275 INFO    MainThread:4908 [wandb_run.py:_redirect():2059] Redirects installed.
 2023-02-16 19:30:48,276 INFO    MainThread:4908 [wandb_init.py:init():817] run started, returning control to user process
+2023-02-17 15:14:05,508 WARNING MsgRouterThr:4908 [router.py:message_loop():77] message_loop has been closed

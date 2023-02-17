@@ -230,6 +230,7 @@ class Trainer():
             for selected_full_seq_id in range(len(selected_full_seqs)):
                 # full_seq_len = round(rul_factor*selected_full_seqs[selected_full_seq_id][1][0])
                 cp_selected_full_seqs = copy.deepcopy(selected_full_seqs[selected_full_seq_id][0])
+                print('retrieval set size:', cp_selected_full_seqs.shape)
                 cp_selected_full_seqs = cp_selected_full_seqs[scale_ratio-1::scale_ratio, :]
                 cp_selected_full_seqs_ruls = copy.deepcopy(selected_full_seqs[selected_full_seq_id][1])
                 cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls[scale_ratio-1::scale_ratio]
