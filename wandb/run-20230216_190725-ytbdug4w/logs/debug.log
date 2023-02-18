@@ -1,5 +1,0 @@
-2023-02-16 19:07:25,189 INFO    MainThread:15896 [wandb_setup.py:_flush():68] Configure stats pid to 15896
-2023-02-16 19:07:25,189 INFO    MainThread:15896 [wandb_setup.py:_flush():68] Loading settings from C:\Users\admin\.config\wandb\settings
-2023-02-16 19:07:25,189 INFO    MainThread:15896 [wandb_setup.py:_flush():68] Loading settings from D:\battery\wandb\settings
-2023-02-16 19:07:25,189 INFO    MainThread:15896 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True'}
-2023-02-16 19:07:25,189 INFO    MainThread:15896 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program_relpath': 'main.py', 'program': 'main.py'}

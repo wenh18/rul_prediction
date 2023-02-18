@@ -189,7 +189,7 @@ class lstm_encoder(nn.Module):
         x = self.bn1(x)
         x = F.relu(x)
         x = self.fc2(x)
-        x = F.sigmoid(x)
+        # x = F.sigmoid(x)
         return x
 
 class RelationNetwork(nn.Module):

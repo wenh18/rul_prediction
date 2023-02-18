@@ -128,7 +128,49 @@ class Trainer():
         self.except_ratios = except_ratios
         """retrieval_feas: [len(zoom_retrieval_seq_ratios) × retrieval_battery_num × seq_num × seq_len × feature_num]"""
         # import pdb;pdb.set_trace()
+    def get_retrieval_parts(self, selected_full_seqs, target_part_len):
+        '''
+        selected_seqs: retrieval degradation seqs except the training part
+        part_lens: [0.33*target_len + i * 0.1 for i in range(26)]
 
+        return:
+        feas: [parts_num_from_each_len*part_lens[i]*feature_num for i in range(len(part_lens[i]))]
+        ruls: parts_num_from_each_len X len(part_lens)
+        '''
+        feature_num = selected_full_seqs[0][0].shape[1]
+        feas, ruls = [], []
+        for scale_ratio in self.scale_ratios:
+            # part_len = int(target_part_len * part_len_ratio)
+            all_feas, rul_lbls = [], []
+            for selected_full_seq_id in range(len(selected_full_seqs)):
+                # full_seq_len = round(rul_factor*selected_full_seqs[selected_full_seq_id][1][0])
+                cp_selected_full_seqs = copy.deepcopy(selected_full_seqs[selected_full_seq_id][0])
+
+                cp_selected_full_seqs = cp_selected_full_seqs[scale_ratio-1::scale_ratio, :]
+                print('retrieval set size:', cp_selected_full_seqs.shape)
+                if cp_selected_full_seqs.shape[0] >= target_part_len:
+                    cp_selected_full_seqs_ruls = copy.deepcopy(selected_full_seqs[selected_full_seq_id][1])
+                    cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls[scale_ratio-1::scale_ratio]
+                    cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls / scale_ratio
+                    sliced_parts = np.lib.stride_tricks.sliding_window_view(cp_selected_full_seqs,
+                                                                            (target_part_len, feature_num))
+
+                    sliced_parts_ruls = cp_selected_full_seqs_ruls[target_part_len - 1:]
+                    sliced_parts = sliced_parts.squeeze(1)
+                    # rul_factor = 1 / part_len_ratio
+                    sliced_parts_ruls = np.array(sliced_parts_ruls).astype(float)
+                else:
+                    sliced_parts = np.array([])
+                    sliced_parts_ruls = np.array([])
+                print('sequence number and rul number for scale ratio{} for sequence{}: {} , {}'.format(scale_ratio, selected_full_seq_id, sliced_parts.shape, sliced_parts_ruls.shape))
+                all_feas.append(sliced_parts)
+                rul_lbls.append(sliced_parts_ruls)
+            # all_feas = np.vstack(all_feas)
+
+            feas.append(all_feas)
+            ruls.append(rul_lbls)
+        # import pdb;pdb.set_trace()
+        return feas, ruls
 
     def randomly_sample_parts(self, batteryidx):
         '''this func takes too much time'''
@@ -164,16 +206,20 @@ class Trainer():
         for zoom_ratio_idx in range(len(self.retrieval_feas)):
             tmp_feas_pool, tmp_rul_pool = [], []
             for retrieval_battery_idx in sampled_battery_ids:
-                # if training:
-                choices = np.random.choice(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx].shape[0],
-                                           parts_num_per_battery, replace=False)
-                tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx][choices, :, :])
-                tmp_rul_pool.append(self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx][choices])
+                if parts_num_per_battery < self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx].shape[0]:
+                    choices = np.random.choice(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx].shape[0],
+                                               parts_num_per_battery, replace=False)
+                    tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx][choices, :, :])
+                    tmp_rul_pool.append(self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx][choices])
+                elif self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx].shape[0] > 0:
+                    tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx])
+                    tmp_rul_pool.append(self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx])
                 # else:
                 #     tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx])
                 #     tmp_rul_pool.append(self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx])
             tmp_feas_pool = np.vstack(tmp_feas_pool)
             tmp_rul_pool = np.hstack(tmp_rul_pool)
+
             feas.append(tmp_feas_pool)
             ruls.append(tmp_rul_pool)
         return feas, ruls
@@ -187,11 +233,13 @@ class Trainer():
         for zoom_ratio_idx in range(len(self.retrieval_feas)):
             tmp_feas_pool, tmp_rul_pool, tmp_encoded_feas_pool = [], [], []
             print('ratio', zoom_ratio_idx)
+
             for retrieval_battery_idx in range(len(self.retrieval_feas[0])):
-                sampled_feas = self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx][(stride-1)::stride, :, :]
-                tmp_feas_pool.append(sampled_feas[:end_cyc])
-                sampled_ruls = self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx][(stride-1)::stride]
-                tmp_rul_pool.append(sampled_ruls[:end_cyc])
+                if self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx].shape[0] > 0:
+                    sampled_feas = self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx][(stride-1)::stride, :, :]
+                    tmp_feas_pool.append(sampled_feas[:end_cyc])
+                    sampled_ruls = self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx][(stride-1)::stride]
+                    tmp_rul_pool.append(sampled_ruls[:end_cyc])
 
             # batchwise inference because of the limited gpu memory
             tmp_feas_pool = torch.Tensor(np.vstack(tmp_feas_pool))#.to(self.device)
@@ -213,45 +261,6 @@ class Trainer():
         # ruls = torch.reshape(ruls, (-1, 1))
         return encoded_feas, ruls
 
-    def get_retrieval_parts(self, selected_full_seqs, target_part_len):
-        '''
-        selected_seqs: retrieval degradation seqs except the training part
-        part_lens: [0.33*target_len + i * 0.1 for i in range(26)]
-
-        return:
-        feas: [parts_num_from_each_len*part_lens[i]*feature_num for i in range(len(part_lens[i]))]
-        ruls: parts_num_from_each_len X len(part_lens)
-        '''
-        feature_num = selected_full_seqs[0][0].shape[1]
-        feas, ruls = [], []
-        for scale_ratio in self.scale_ratios:
-            # part_len = int(target_part_len * part_len_ratio)
-            all_feas, rul_lbls = [], []
-            for selected_full_seq_id in range(len(selected_full_seqs)):
-                # full_seq_len = round(rul_factor*selected_full_seqs[selected_full_seq_id][1][0])
-                cp_selected_full_seqs = copy.deepcopy(selected_full_seqs[selected_full_seq_id][0])
-                print('retrieval set size:', cp_selected_full_seqs.shape)
-                cp_selected_full_seqs = cp_selected_full_seqs[scale_ratio-1::scale_ratio, :]
-                cp_selected_full_seqs_ruls = copy.deepcopy(selected_full_seqs[selected_full_seq_id][1])
-                cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls[scale_ratio-1::scale_ratio]
-                cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls / scale_ratio
-                sliced_parts = np.lib.stride_tricks.sliding_window_view(cp_selected_full_seqs,
-                                                                        (target_part_len, feature_num))
-
-                sliced_parts_ruls = cp_selected_full_seqs_ruls[target_part_len - 1:]
-                sliced_parts = sliced_parts.squeeze()
-                # rul_factor = 1 / part_len_ratio
-                sliced_parts_ruls = np.array(sliced_parts_ruls).astype(float)
-                # sliced_parts_ruls *= rul_factor
-                all_feas.append(sliced_parts)
-                rul_lbls.append(sliced_parts_ruls)
-            # all_feas = np.vstack(all_feas)
-
-            feas.append(all_feas)
-            ruls.append(rul_lbls)
-        # import pdb;pdb.set_trace()
-        return feas, ruls
-
 
     def select_source_seqs(self, battery_seq, batteryidx):
         seqs, batteryids = [], []
@@ -264,7 +273,7 @@ class Trainer():
         return feas, ruls
 
 
-    def train(self, train_loader, valid_loader, encoder, relationmodel, wandb):
+    def train(self, train_loader, valid_loader, encoder, relationmodel, wandb, save_path):
         # model = model.to(self.device)
         device = self.device
         encoder_optimizer = optim.Adam(encoder.parameters(), lr=self.lr)
@@ -281,69 +290,72 @@ class Trainer():
 
         for epoch in range(self.n_epochs):
 
-            print('training epoch:', epoch)
-            encoder_lr_scheduler.step(epoch)
-            relation_lr_scheduler.step(epoch)
-            encoder.train()
-            relationmodel.train()
-            # y_true, y_pred = [], []
-            # train_losses = []
-            for step, (x, y) in enumerate(train_loader):
-                x = x.to(device)
-                loss = 0
-                for batch_battery_idx in range(y.size(0)):
-                    batteryidx = int(y[batch_battery_idx][2].item())
-                    seqs, ruls = self.randomly_sample_partsv2(batteryidx)
-                    all_scores, all_ruls = [], []
-                    # scale target source
-                    for scaleidx in range(len(self.scale_ratios)):
-
-                        target_scale_ratio = self.scale_ratios[scaleidx]
-                        scaled_target = x[batch_battery_idx][target_scale_ratio-1::target_scale_ratio, :]
-                        scaled_target = scaled_target.unsqueeze(dim=0)
-                        encoded_target = encoder(scaled_target)
-
-                        for sampleratioidx in range(len(seqs)):
-                            ratio_pair = [sampleratioidx+1, scaleidx+1]
-                            if ratio_pair in self.except_ratios:
-                                continue
-                            # print(ratio_pair)
-                            # if sampleratioidx != 0 and scaleidx == sampleratioidx:
-                            #     continue
-                            tensor_seq = torch.Tensor(seqs[sampleratioidx]).cuda()
-                            encoded_source = encoder(tensor_seq)
-                            if encoded_source.size() != encoded_target.size():
-                                encoded_target = encoded_target.repeat(encoded_source.size(0), 1)
-                            relation_scores = relationmodel(encoded_source, encoded_target)
-                            all_scores.append(relation_scores)
-
-                            all_ruls.append(ruls[sampleratioidx] * target_scale_ratio)
-
-                    all_scores = torch.hstack(all_scores)
-                    all_ruls = torch.Tensor(np.vstack(all_ruls)).cuda()
-                    all_ruls = all_ruls.reshape(-1, 1)
-
-                    all_scores = F.softmax(all_scores, dim=0)
-                    # all_scores = all_scores / torch.sum(all_scores)
-                    # import pdb;pdb.set_trace()
-                    all_scores = all_scores.unsqueeze(dim=0)
-                    predicted_rul = torch.mm(all_scores, all_ruls)
-                    loss += loss_fn(predicted_rul, y[batch_battery_idx][0].cuda())
-
-                loss /= y.size(0)
-                encoder_optimizer.zero_grad()
-                relationmodel_optimizer.zero_grad()
-                loss.backward()
-                encoder_optimizer.step()
-                relationmodel_optimizer.step()
-                train_loss.append(loss.cpu().detach().numpy())
-
-                if step % 50 == 0:
-                    print('step:', step, 'train loss:', train_loss[-1], np.average(train_loss))
-                    wandb.log({'loss:': train_loss[-1], 'epoch': epoch})
+            # print('training epoch:', epoch)
+            # encoder_lr_scheduler.step(epoch)
+            # relation_lr_scheduler.step(epoch)
+            # encoder.train()
+            # relationmodel.train()
+            # # y_true, y_pred = [], []
+            # # train_losses = []
+            # for step, (x, y) in enumerate(train_loader):
+            #     x = x.to(device)
+            #     loss = 0
+            #     for batch_battery_idx in range(y.size(0)):
+            #         batteryidx = int(y[batch_battery_idx][2].item())
+            #         seqs, ruls = self.randomly_sample_partsv2(batteryidx)
+            #         all_scores, all_ruls = [], []
+            #         # scale target source
+            #         for scaleidx in range(len(self.scale_ratios)):
+            #
+            #             target_scale_ratio = self.scale_ratios[scaleidx]
+            #             scaled_target = x[batch_battery_idx][target_scale_ratio-1::target_scale_ratio, :]
+            #             scaled_target = scaled_target.unsqueeze(dim=0)
+            #             encoded_target = encoder(scaled_target)
+            #
+            #             for sampleratioidx in range(len(seqs)):
+            #                 ratio_pair = [sampleratioidx+1, scaleidx+1]
+            #                 if ratio_pair in self.except_ratios:
+            #                     continue
+            #                 # print(ratio_pair)
+            #                 # if sampleratioidx != 0 and scaleidx == sampleratioidx:
+            #                 #     continue
+            #                 tensor_seq = torch.Tensor(seqs[sampleratioidx]).cuda()
+            #                 encoded_source = encoder(tensor_seq)
+            #                 if encoded_source.size() != encoded_target.size():
+            #                     unsqueezed_encoded_target = encoded_target.repeat(encoded_source.size(0), 1)
+            #                 else:
+            #                     unsqueezed_encoded_target = encoded_target
+            #                 relation_scores = relationmodel(encoded_source, unsqueezed_encoded_target)
+            #                 all_scores.append(relation_scores)
+            #
+            #                 all_ruls.append(ruls[sampleratioidx] * target_scale_ratio)
+            #
+            #         all_scores = torch.hstack(all_scores)
+            #         all_ruls = torch.Tensor(np.hstack(all_ruls)).cuda()
+            #         all_ruls = all_ruls.reshape(-1, 1)
+            #
+            #         all_scores = F.softmax(all_scores, dim=0)
+            #         # all_scores = all_scores / torch.sum(all_scores)
+            #         # import pdb;pdb.set_trace()
+            #         all_scores = all_scores.unsqueeze(dim=0)
+            #         predicted_rul = torch.mm(all_scores, all_ruls)
+            #         loss += loss_fn(predicted_rul, y[batch_battery_idx][0].cuda())
+            #
+            #     loss /= y.size(0)
+            #     encoder_optimizer.zero_grad()
+            #     relationmodel_optimizer.zero_grad()
+            #     loss.backward()
+            #     encoder_optimizer.step()
+            #     relationmodel_optimizer.step()
+            #     train_loss.append(loss.cpu().detach().numpy())
+            #
+            #     if step % 50 == 0:
+            #         print('step:', step, 'train loss:', train_loss[-1], np.average(train_loss))
+            #         wandb.log({'loss:': train_loss[-1], 'epoch': epoch})
 
 
             print('started to evaluate')
+
             encoder.eval()
             relationmodel.eval()
             y_true, y_pred = [], []
@@ -399,10 +411,10 @@ class Trainer():
 
                 y_true = torch.Tensor(y_true)
                 y_pred = torch.Tensor(y_pred)
-                # import matplotlib.pyplot as plt
-                # plt.plot([i for i in range(len(y_true))], y_true)
-                # plt.plot([i for i in range(len(y_true))], y_pred)
-                # plt.show()
+                import matplotlib.pyplot as plt
+                plt.plot([i for i in range(len(y_true))], y_true)
+                plt.plot([i for i in range(len(y_true))], y_pred)
+                plt.show()
                 epoch_loss = torch.nn.L1Loss()(y_true, y_pred)
                 print(epoch_loss)
                 valid_loss.append(epoch_loss)
@@ -412,7 +424,7 @@ class Trainer():
                     print('Epoch number : ', epoch)
                     print(f'-- "train" loss {train_loss[-1]:.4}', f'-- "valid" loss {epoch_loss:.4}')
                     # torch.save(relationmodel.state_dict(), 'VITrelationmodel.pth')
-                    name = 'output/scale/layernorm/LSTM_relu_b_32_' + str(int(epoch_loss.item())) + '.pth'
+                    name = save_path + '/LSTM_relu_b_32_' + str(int(epoch_loss.item())) + '.pth'
                     torch.save(encoder.state_dict(), name)
                 else:
                     print(f'-- "train" loss {train_loss[-1]:.4}', f'-- "valid" loss {epoch_loss:.4}')

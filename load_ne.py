@@ -33,8 +33,9 @@ def split_seq(fullseq, rul_labels, seqlen, seqnum):
     all_fea = all_fea.squeeze()
     # ruls = rul_labels[seqlen-1:]
     fullseqlen = rul_labels[0]
-    fullseqlens = np.array([fullseqlen for _ in range(rul_labels.shape[0])])
-    lbls = np.vstack((rul_labels, fullseqlens)).T
+    lbls = rul_labels[seqlen-1:]
+    fullseqlens = np.array([fullseqlen for _ in range(all_fea.shape[0])])
+    lbls = np.vstack((lbls, fullseqlens)).T
     if seqnum <= all_fea.shape[0]:
         return all_fea[:seqnum], lbls[:seqnum]
     else:
@@ -352,7 +353,7 @@ if __name__ == '__main__':
                     tmp_extracted_fea += preprocessv3(all_fea[cycidx, :, i], None)
                 extracted_fea.append(tmp_extracted_fea)
             extracted_fea = np.array(extracted_fea)
-            all_lbl = all_lbl[seq_len - 1:]
+            # all_lbl = all_lbl[seq_len - 1:]
 
             np.save(pkl_dir + key + 'v3.npy', extracted_fea)
             np.save(pkl_dir + key + '_rulv3.npy', all_lbl)

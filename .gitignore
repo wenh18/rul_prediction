@@ -3,8 +3,9 @@
 ./backup/
 *.pkl
 *.mat
-./output/
-./wandb/
+*yaml
+output/
+wandb/
 ./_pycache_/
 ./.idea/
 ./Learning-To-Compare-For-Text/
