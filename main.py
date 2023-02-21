@@ -28,7 +28,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset, Sampler, TensorDataset
 from torch.utils.data.sampler import RandomSampler
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 '''below is the order when we do not want to upload training log to cloud'''
 os.environ['WANDB_MODE'] = 'offline'
 import wandb
@@ -59,14 +59,17 @@ warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=int, default=32)
 parser.add_argument('--valid-batch-size', type=int, default=1)
-parser.add_argument('--seriesnum', help='series number for training set', type=int, default=1000)
-parser.add_argument('--scale-ratios', type=list, default=[1])  # [1, 2, 3, 4, 5])  # [1, 2]
+parser.add_argument('--seriesnum', help='series number for training set', type=int, default=3000)
+parser.add_argument('--retrieval-len', help='number of retrieval fragments cut off from each'
+                                            'sequence for comparing', type=int, default=3000)
+parser.add_argument('--scale-ratios', type=list, default=[1, 2, 3, 4, 5])  # [1, 2, 3, 4, 5])  # [1, 2]
 parser.add_argument('--except-ratios', type=list, default=[[1, 2], [2, 1],
                                                            [2, 2],
                                                            [1, 3], [3, 1], [3, 3],
                                                            [1, 4], [2, 4], [4, 1], [4, 2], [4, 4],
                                                            [5, 1], [5, 2], [5, 5], [1, 5], [2, 5]])
-parser.add_argument('--parts-num-per-ratio', help='sequence number from each scaling ratio', default=500)  # 240
+parser.add_argument('--data-aug-ratios', type=list, default=[1.2, 1.4, 1.6, 1.8, 2.])
+parser.add_argument('--parts-num-per-ratio', help='sequence number from each scaling ratio', default=50)  # 500 240
 parser.add_argument('--valid-max-len', type=int, help='sequence number for testing', default=10)
 parser.add_argument('--lstm-hidden', type=int, help='lstm hidden layer number', default=128)  # 128
 parser.add_argument('--fc-hidden', type=int, help='fully connect layer hidden dimension', default=96)  # 128
@@ -74,7 +77,7 @@ parser.add_argument('--fc-out', type=int, help='embedded sequence dimmension', d
 parser.add_argument('--dropout', type=float, default=0.4)  # 0.1
 parser.add_argument('--lstm-layer', type=int, default=1)  # 0.1
 parser.add_argument('--train-retrieval-num', help='source domain sequence number when training', type=int,
-                    default=20)  # 0.1
+                    default=15)  # 0.1
 args = parser.parse_args()
 if __name__ == '__main__':
     FROM_SCRATCH = True
@@ -110,6 +113,9 @@ if __name__ == '__main__':
                    'valid_max_len': 10
                }
                )
+    data_aug_scale_ratios = [1.]
+    for scale_ratio in args.data_aug_ratios:
+        data_aug_scale_ratios += [1 / scale_ratio, scale_ratio]
 
     if OURDATA:
         new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
@@ -139,7 +145,7 @@ if __name__ == '__main__':
         batteryid = 0
         for name in new_train + new_valid:
             retrieval_set[batteryid] = dataloader.get_retrieval_seq(name, pkl_dir, rul_factor,
-                                                                    seriesnum=args.seriesnum * 2)
+                                                                    seriesnum=5000)
             batteryid += 1
 
         train_fea = np.vstack(train_fea)
@@ -165,9 +171,11 @@ if __name__ == '__main__':
         valid_batteryids = valid_batteryids.reshape((-1, 1))
         valid_lbl = np.hstack((valid_rul, valid_batteryids))
     else:
+
         train_fea, train_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
                                                           rul_factor=rul_factor, dataset_name='trainvalid',
-                                                          seqnum=args.seriesnum)
+                                                          seqnum=args.seriesnum,
+                                                          data_aug_scale_ratios=data_aug_scale_ratios)
         # train_fea = train_fea[:seriesnum]
         # train_lbl = train_lbl[:seriesnum]
         valid_fea, valid_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
@@ -175,7 +183,7 @@ if __name__ == '__main__':
                                                           seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
-        retrieval_set = load_ne.get_retrieval_seq(rul_factor=rul_factor, seriesnum=args.seriesnum * 2)
+        retrieval_set = load_ne.get_retrieval_seq(rul_factor=rul_factor, seriesnum=5000)
     print(train_fea.shape, train_lbl.shape, valid_fea.shape, valid_lbl.shape)
 
     trainset = TensorDataset(torch.Tensor(train_fea), torch.Tensor(train_lbl))
@@ -223,7 +231,7 @@ if __name__ == '__main__':
         encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
                                outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
         # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
-        encoder.load_state_dict(torch.load('output/1676706773.6733632/LSTM_relu_b_32_194.pth'))
+        # encoder.load_state_dict(torch.load('output/1676706773.6733632/LSTM_relu_b_32_194.pth'))
         relationmodel = RelationNetwork(input_size=2 * encoded_feature_dim, hidden_size=512)
         # relationmodel = FNNRelationNetwork(input_size=2 * encoded_feature_dim+1, hidden_size=512)
         encoder = encoder.to(device)
@@ -235,10 +243,11 @@ if __name__ == '__main__':
         retrieval_set_size = 32
         trainer = utils.Trainer(lr=3e-4, n_epochs=num_epochs, device=device, patience=1200,
                                 lamda=lamda, alpha=alpha, model_name='./model/wx_inner/wx_inner_pretrain',
-                                retreival_set=retrieval_set,
+                                retrieval_set=retrieval_set,
                                 train_retrieval_size=args.train_retrieval_num,
                                 parts_num_from_each_len=args.parts_num_per_ratio,
-                                scale_ratios=args.scale_ratios, except_ratios=args.except_ratios)
+                                scale_ratios=args.scale_ratios, except_ratios=args.except_ratios,
+                                data_aug_scale_ratios=data_aug_scale_ratios)
         model, train_loss, valid_loss, total_loss = trainer.train(
             train_loader, valid_loader, relationmodel=relationmodel, encoder=encoder, wandb=wandb, save_path=output_dir)
 

@@ -3,7 +3,8 @@
 ./backup/
 *.pkl
 *.mat
-*yaml
+*.yaml
+*.log
 output/
 wandb/
 ./_pycache_/
