@@ -30,7 +30,7 @@ from torch.utils.data.sampler import RandomSampler
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 '''below is the order when we do not want to upload training log to cloud'''
-os.environ['WANDB_MODE'] = 'offline'
+# os.environ['WANDB_MODE'] = 'offline'
 import wandb
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     OURDATA = False
     # print(type(args.scale_ratios), args.scale_ratios)
     # exit(0)
-    wandb.init(project='ne_noscale',
+    wandb.init(project='ne',
                config={
                    'batch_size': 32,
                    'valida_batch_size': 1,
@@ -226,17 +226,18 @@ if __name__ == '__main__':
         #     num_classes=encoded_feature_dim,
         #     # channels=3,
         #     depth=4,
+
         #     heads=4,
         #     mlp_dim=512, #1024,
         #     dropout=0.1,
         #     emb_dropout=0.1
         # )
         # weights_init(encoder)
-        # encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
-        #                        outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
-        encoder = FFNEncoder(input_size=9*100, hidden_size=args.fc_out)
+        encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
+                               outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
+        # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
         # encoder.load_state_dict(torch.load('output/1676706773.6733632/LSTM_relu_b_32_194.pth'))
-        relationmodel = RelationNetwork(input_size=2 * args.fc_out, hidden_size=512)
+        relationmodel = RelationNetwork(input_size=2 * encoded_feature_dim, hidden_size=512)
         # relationmodel = FNNRelationNetwork(input_size=2 * encoded_feature_dim+1, hidden_size=512)
         encoder = encoder.to(device)
         relationmodel = relationmodel.to(device)

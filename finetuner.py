@@ -71,7 +71,7 @@ parser.add_argument('--except-ratios', type=list, default=[[1, 2], [2, 1],
                                                            [1, 3], [3, 1], [3, 3],
                                                            [1, 4], [2, 4], [4, 1], [4, 2], [4, 4],
                                                            [5, 1], [5, 2], [5, 5], [1, 5], [2, 5]])
-parser.add_argument('--data-aug-ratios', type=list, default=[1.2, 1.4, 1.6])
+parser.add_argument('--data-aug-ratios', type=list, default=[])
 parser.add_argument('--parts-num-per-ratio', help='sequence number from each scaling ratio', default=1000)  # 500 240
 parser.add_argument('--valid-max-len', type=int, help='sequence number for testing', default=10)
 parser.add_argument('--lstm-hidden', type=int, help='lstm hidden layer number', default=128)  # 128
@@ -103,20 +103,20 @@ if __name__ == '__main__':
     seq_len = 100
     series_lens = [100]
 
-    OURDATA = False
+    OURDATA = True
     # print(type(args.scale_ratios), args.scale_ratios)
     # exit(0)
-    wandb.init(project='ne_noscale',
-               config={
-                   'batch_size': 32,
-                   'valida_batch_size': 1,
-                   'seriesnum': 1000,
-                   'scale_ratios': '[1, 2, 3]',  # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
-                   'except_ratios': '[[1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]',
-                   'parts_num_per_ratio': 240,
-                   'valid_max_len': 10
-               }
-               )
+    # wandb.init(project='ne_noscale',
+    #            config={
+    #                'batch_size': 32,
+    #                'valida_batch_size': 1,
+    #                'seriesnum': 1000,
+    #                'scale_ratios': '[1, 2, 3]',  # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
+    #                'except_ratios': '[[1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]',
+    #                'parts_num_per_ratio': 240,
+    #                'valid_max_len': 10
+    #            }
+    #            )
     data_aug_scale_ratios = [1.]
     for scale_ratio in args.data_aug_ratios:
         data_aug_scale_ratios += [1 / scale_ratio, scale_ratio]
@@ -134,24 +134,24 @@ if __name__ == '__main__':
         train_fea, train_ruls, train_batteryids = [], [], []
 
         batteryid = 0
-        for name in new_train + new_valid:
-            # tmp_fea, tmp_lbl = dataloader.get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor)
-            tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens,
-                                                   i_low, i_upp, v_low, v_upp, q_low, q_upp,
-                                                   rul_factor, cap_factor, pkl_dir, raw_features=False,
-                                                   seriesnum=args.seriesnum)
-            train_fea.append(tmp_fea)
-            train_ruls.append(tmp_lbl)
-            train_batteryids += [batteryid for _ in range(tmp_fea.shape[0])]
-            batteryid += 1
+        for name in new_train + new_valid + new_test:
+            dataloader.save_full_seqs(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor)
+            # tmp_fea, tmp_lbl = dataloader.get_xyv2(name, series_lens,
+            #                                        i_low, i_upp, v_low, v_upp, q_low, q_upp,
+            #                                        rul_factor, cap_factor, pkl_dir, raw_features=False,
+            #                                        seriesnum=args.seriesnum)
+            # train_fea.append(tmp_fea)
+            # train_ruls.append(tmp_lbl)
+            # train_batteryids += [batteryid for _ in range(tmp_fea.shape[0])]
+            # batteryid += 1
 
-        retrieval_set = {}
-        batteryid = 0
-        for name in new_train + new_valid:
-            retrieval_set[batteryid] = dataloader.get_retrieval_seq(name, pkl_dir, rul_factor,
-                                                                    seriesnum=5000)
-            batteryid += 1
-
+        # retrieval_set = {}
+        # batteryid = 0
+        # for name in new_train + new_valid:
+        #     retrieval_set[batteryid] = dataloader.get_retrieval_seq(name, pkl_dir, rul_factor,
+        #                                                             seriesnum=5000)
+        #     batteryid += 1
+        exit(0)
         train_fea = np.vstack(train_fea)
         train_ruls = np.vstack(train_ruls)
         # import pdb;pdb.set_trace()
@@ -232,11 +232,11 @@ if __name__ == '__main__':
         #     emb_dropout=0.1
         # )
         # weights_init(encoder)
-        # encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
-        #                        outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
-        encoder = FFNEncoder(input_size=9*100, hidden_size=args.fc_out)
+        encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
+                               outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
+        # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
         # encoder.load_state_dict(torch.load('output/1676706773.6733632/LSTM_relu_b_32_194.pth'))
-        relationmodel = RelationNetwork(input_size=2 * args.fc_out, hidden_size=512)
+        relationmodel = RelationNetwork(input_size=2 * encoded_feature_dim, hidden_size=512)
         # relationmodel = FNNRelationNetwork(input_size=2 * encoded_feature_dim+1, hidden_size=512)
         encoder = encoder.to(device)
         relationmodel = relationmodel.to(device)

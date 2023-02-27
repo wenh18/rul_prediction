@@ -420,6 +420,7 @@ if __name__ == '__main__':
 
             extracted_fea = []
             for cycidx in range(all_fea.shape[0]):
+                # the first element of feature is soh value
                 tmp_extracted_fea = [aux_lbl[cycidx]]
                 for i in range(4):
                     tmp_extracted_fea += preprocessv3(all_fea[cycidx, :, i], None)

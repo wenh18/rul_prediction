@@ -29,9 +29,6 @@ from torch.utils.data import DataLoader, Dataset, Sampler, TensorDataset
 from torch.utils.data.sampler import RandomSampler
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-'''below is the order when we do not want to upload training log to cloud'''
-os.environ['WANDB_MODE'] = 'offline'
-import wandb
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -71,7 +68,7 @@ parser.add_argument('--except-ratios', type=list, default=[[1, 2], [2, 1],
                                                            [1, 3], [3, 1], [3, 3],
                                                            [1, 4], [2, 4], [4, 1], [4, 2], [4, 4],
                                                            [5, 1], [5, 2], [5, 5], [1, 5], [2, 5]])
-parser.add_argument('--data-aug-ratios', type=list, default=[1.2, 1.4, 1.6])
+parser.add_argument('--data-aug-ratios', type=list, default=[])
 parser.add_argument('--parts-num-per-ratio', help='sequence number from each scaling ratio', default=1000)  # 500 240
 parser.add_argument('--valid-max-len', type=int, help='sequence number for testing', default=10)
 parser.add_argument('--lstm-hidden', type=int, help='lstm hidden layer number', default=128)  # 128
@@ -82,7 +79,21 @@ parser.add_argument('--lstm-layer', type=int, default=1)  # 0.1
 
 parser.add_argument('--lr', help='initial learning rate', type=float, default=1e-3)  # 0.1
 parser.add_argument('--gama', help='learning rate decay rate', type=float, default=0.9)  # 0.1
+
+parser.add_argument('--model-path', help='well-trained model weight path', type=str,
+                    default='output/1677033399.084015/LSTM_relu_b_32_67.pth')
+parser.add_argument('--cfg', help='parser args records file', type=str,
+                    default='output/1677033399.084015/config.yaml')
 args = parser.parse_args()
+tmp = args.model_path
+with open(args.cfg, encoding='utf-8') as f:
+    cfg = yaml.unsafe_load(f.read())#, Loader=yaml.FullLoader)
+    # for i in iter(cfg):
+    #     print(i)
+    # import pdb;pdb.set_trace()
+    args.__dict__ = vars(cfg)
+args.model_path = tmp
+args.valid_max_len = 1
 if __name__ == '__main__':
     FROM_SCRATCH = True
     n_cyc = 30
@@ -106,17 +117,6 @@ if __name__ == '__main__':
     OURDATA = False
     # print(type(args.scale_ratios), args.scale_ratios)
     # exit(0)
-    wandb.init(project='ne_noscale',
-               config={
-                   'batch_size': 32,
-                   'valida_batch_size': 1,
-                   'seriesnum': 1000,
-                   'scale_ratios': '[1, 2, 3]',  # [1, 2, 3]  # must in ascent order, e.g. [1, 2, 3]
-                   'except_ratios': '[[1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [1, 4], [2, 4], [4, 1], [4, 2], [4, 4]]',
-                   'parts_num_per_ratio': 240,
-                   'valid_max_len': 10
-               }
-               )
     data_aug_scale_ratios = [1.]
     for scale_ratio in args.data_aug_ratios:
         data_aug_scale_ratios += [1 / scale_ratio, scale_ratio]
@@ -199,9 +199,6 @@ if __name__ == '__main__':
     directory_based_on_time = str(time.time())
 
     output_dir = './output/' + directory_based_on_time
-    os.mkdir(output_dir)
-    with open(output_dir + '/config.yaml', "w", encoding='utf-8') as f:
-        yaml.dump(args, f)
 
     if FROM_SCRATCH:
         '''
@@ -232,11 +229,11 @@ if __name__ == '__main__':
         #     emb_dropout=0.1
         # )
         # weights_init(encoder)
-        # encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
-        #                        outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
-        encoder = FFNEncoder(input_size=9*100, hidden_size=args.fc_out)
-        # encoder.load_state_dict(torch.load('output/1676706773.6733632/LSTM_relu_b_32_194.pth'))
-        relationmodel = RelationNetwork(input_size=2 * args.fc_out, hidden_size=512)
+        encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
+                               outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
+        # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
+        encoder.load_state_dict(torch.load(args.model_path))
+        relationmodel = RelationNetwork(input_size=2 * encoded_feature_dim, hidden_size=512)
         # relationmodel = FNNRelationNetwork(input_size=2 * encoded_feature_dim+1, hidden_size=512)
         encoder = encoder.to(device)
         relationmodel = relationmodel.to(device)
@@ -253,118 +250,7 @@ if __name__ == '__main__':
                                 parts_num_from_each_len=args.parts_num_per_ratio,
                                 scale_ratios=args.scale_ratios, except_ratios=args.except_ratios,
                                 data_aug_scale_ratios=data_aug_scale_ratios)
-        model, train_loss, valid_loss, total_loss = trainer.train(
-            train_loader, valid_loader, relationmodel=relationmodel, encoder=encoder, wandb=wandb, save_path=output_dir)
+        model, train_loss, valid_loss, total_loss = trainer.test(
+            train_loader, valid_loader, relationmodel=relationmodel, encoder=encoder, save_path=output_dir)
 
         print(time.time() - tic)
-
-# else:  # model has been pre-trained on common dataset
-#     lamda = 0.0
-#     train_weight9 = [0., 0.1, 0., 0., 0.1, 0., 0., 0., 0., ]
-#     valid_weight9 = [0. if (i != 0) else 0.1 for i in train_weight9]
-#     train_alpha = torch.Tensor(train_weight9 + [0.])
-#     valid_alpha = torch.Tensor(valid_weight9 + [0.])
-#     device = 'cuda'
-#
-#     pretrain_model_path = './model/wx_inner/wx_inner_pretrain_end.pt'
-#     finetune_model_path = './model/wx_inner/wx_inner_finetune'
-#
-#     device = 'cuda'
-#     trainer = Trainer(lr=8e-4, n_epochs=None, device=device, patience=1200,
-#                       lamda=lamda, alpha=None, model_name=None)
-#
-#     res_dict = {}
-#
-#     for name in new_test[:]:
-#
-#         stride = 1
-#         test_fea, test_lbl = [], []
-#         tmp_fea, tmp_lbl = all_loader[name]['fea'], all_loader[name]['lbl']
-#         test_fea.append(tmp_fea[::stride])
-#         test_lbl.append(tmp_lbl[::stride])
-#         test_fea = np.vstack(test_fea)
-#         test_lbl = np.vstack(test_lbl).squeeze()
-#
-#         batch_size = 20 if len(test_fea) % 20 != 1 else 21
-#         rul_true, rul_pred, rul_base, SOH_TRUE, SOH_PRED, SOH_BASE = [], [], [], [], [], []
-#
-#         for i in range(test_fea.shape[0] // batch_size + 1):
-#
-#             test_fea_ = test_fea[i * batch_size: i * batch_size + batch_size].transpose(0, 3, 2, 1)
-#             test_lbl_ = test_lbl[i * batch_size: i * batch_size + batch_size]
-#             testset = TensorDataset(torch.Tensor(test_fea_), torch.Tensor(test_lbl_))
-#             test_loader = DataLoader(testset, batch_size=batch_size, )
-#
-#             if test_fea_.shape[0] == 0: continue
-#
-#             model = CRNN(100, 4, 64, 64)
-#             model = model.to(device)
-#             # model.load_state_dict(torch.load(pretrain_model_path))
-#
-#             _, y_pred, _, _, soh_pred = trainer.test(test_loader, model)
-#             rul_base.append(y_pred.cpu().detach().numpy())
-#             SOH_BASE.append(soh_pred.cpu().detach().numpy())
-#
-#             for p in model.soh.parameters():
-#                 p.requires_grad = False
-#             for p in model.rul.parameters():
-#                 p.requires_grad = False
-#             for p in model.cnn.parameters():
-#                 p.requires_grad = False
-#
-#             tic = time.time()
-#             seed_torch(2021)
-#
-#             num_epochs = 120
-#             model_load = False
-#             trainer = FineTrainer(lr=1e-4, n_epochs=num_epochs, device=device, patience=1000,
-#                                   lamda=lamda, train_alpha=train_alpha, valid_alpha=valid_alpha,
-#                                   model_name=finetune_model_path)
-#             model, train_loss, valid_loss, total_loss, added_loss = trainer.train(test_loader, test_loader, model,
-#                                                                                   model_load)
-#
-#             y_true, y_pred, mse_loss, soh_true, soh_pred = trainer.test(test_loader, model)
-#             rul_true.append(y_true.cpu().detach().numpy().reshape(-1, 1))
-#             rul_pred.append(y_pred.cpu().detach().numpy())
-#             SOH_TRUE.append(soh_true.cpu().detach().numpy())
-#             SOH_PRED.append(soh_pred.cpu().detach().numpy())
-#
-#         rul_true = np.vstack(rul_true).squeeze()
-#         rul_pred = np.vstack(rul_pred).squeeze()
-#         rul_base = np.vstack(rul_base).squeeze()
-#         SOH_TRUE = np.vstack(SOH_TRUE)
-#         SOH_PRED = np.vstack(SOH_PRED)
-#         SOH_BASE = np.vstack(SOH_BASE)
-#
-#         fig = plt.figure(figsize=(20, 10))
-#         plt.subplot(121)
-#         plt.plot(rul_true[:] * rul_factor, '.', label='true')
-#         plt.plot(rul_pred[:] * rul_factor, '.', label='transfer')
-#         plt.legend(fontsize=20)
-#         plt.title(f'{name} cycle life ({len(test_fea)}): RUL', fontsize=20)
-#         plt.xlabel('Cycle', fontsize=20)
-#         plt.ylabel('RUL', fontsize=20)
-#         plt.subplot(122)
-#         for seq_num in range(9, 10):
-#             plt.plot(SOH_TRUE[:, seq_num] * cap_factor, '.', label='true')
-#             plt.plot(SOH_PRED[:, seq_num] * cap_factor, '.', label='transfer')
-#         plt.legend(fontsize=20)
-#         plt.title(f'{name}: Capacity', fontsize=20)
-#         plt.xlabel('Cycle', fontsize=20)
-#         plt.ylabel('Capacity', fontsize=20)
-#         plt.show()
-#
-#         res_dict.update({name: {
-#             'rul': {
-#                 'true': rul_true[:] * rul_factor,
-#                 'base': rul_base[:] * rul_factor,
-#                 'transfer': rul_pred[:] * rul_factor,
-#             },
-#             'soh': {
-#                 'true': SOH_TRUE[:, 9] * cap_factor,
-#                 'base': SOH_BASE[:, 9] * cap_factor,
-#                 'transfer': SOH_PRED[:, 9] * cap_factor,
-#             },
-#         }
-#         })
-#         save_obj(res_dict, './result/res_dict')

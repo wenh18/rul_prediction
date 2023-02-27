@@ -23,9 +23,9 @@ def change(arr,t,num):
     y_new = f_linear(x_new)
     return y_new
 
-path1 = './data/ne_data/2017-05-12_batchdata_updated_struct_errorcorrect.mat'
-path2 = './data/ne_data/2017-06-30_batchdata_updated_struct_errorcorrect.mat'
-path3 = './data/ne_data/2018-04-12_batchdata_updated_struct_errorcorrect.mat'
+path1 = '../../ne_data/2017-05-12_batchdata_updated_struct_errorcorrect.mat'
+path2 = '../../ne_data/2017-06-30_batchdata_updated_struct_errorcorrect.mat'
+path3 = '../../ne_data/2018-04-12_batchdata_updated_struct_errorcorrect.mat'
 
 temp1=h5py.File(path1,'r')
 temp2=h5py.File(path2,'r')

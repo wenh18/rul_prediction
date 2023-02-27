@@ -50,24 +50,59 @@ for displayidx in range(0, 1):
         seqlen = a0.shape[0]
 
         data, allrul = filter_out_training_extremes(a0, ruls, threshold=0.05)
-        print(allrul)
+        # print(allrul)
         sohs = data[:, 0]
         newdata, newrul = interp([i for i in range(data.shape[0])], data,
                                  int(ratio*data.shape[0]), allrul)
-        print(newrul)
+        # print(newrul)
         # if data.shape[0] != allrul.shape[0]:
         #     print('error')
         # else:
         #     print(data.shape, allrul.shape)
 
         plt.plot([i for i in range(len(data))], data[:, displayidx], )
-        plt.plot([i for i in range(len(newdata))], newdata[:, displayidx], )
+        # plt.plot([i for i in range(len(newdata))], newdata[:, displayidx], )
     # plt.savefig('train.jpg')
     # plt.xlim((0, 100))
-    plt.show()
+    # plt.show()
 
+new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
+new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
+             '5-4', '8-7', '7-7', '4-4', '1-3', '7-1', '5-2', '6-4', '9-8', '9-5', '6-3', '10-8', '1-6', '3-5',
+             '2-6', '3-8', '3-6', '4-8', '7-8', '5-1', '2-8', '8-2', '1-5', '7-3', '10-2', '5-5', '9-2', '5-6',
+             '1-7',
+             '8-3', '4-1', '4-2', '1-4', '6-5', ]
+new_test = ['9-6', '4-5', '1-2', '10-7', '1-1', '6-1', '6-6', '9-4', '10-4', '8-5', '5-3', '10-6',
+            '2-5', '6-2', '3-1', '8-8', '8-1', '8-6', '7-6', '6-8', '7-5', '10-1']
+
+for batteryname in new_train + new_valid:
+    name = 'our_data/' + batteryname + 'v4.npy'
+    rul = 'our_data/' + batteryname + '_rulv4.npy'
+    a0 = np.load(name, allow_pickle=True)
+    ruls = np.load(rul, allow_pickle=True)
+    ratio = 1 / 1.2
+    # print(ruls[-1])
+    # newruls = change_ruls(ruls, ratio)
+    # print(newruls)
+    seqlen = a0.shape[0]
+
+    data, allrul = filter_out_training_extremes(a0, ruls, threshold=0.05)
+    data = data / 1000 * 1190
+    print(allrul)
+    sohs = data[:, 0]
+    newdata, newrul = interp([i for i in range(data.shape[0])], data,
+                             int(ratio * data.shape[0]), allrul)
+    newdata = newdata / 1000 * 1190
+    print(newrul)
+    # if data.shape[0] != allrul.shape[0]:
+    #     print('error')
+    # else:
+    #     print(data.shape, allrul.shape)
+
+    plt.plot([i for i in range(len(data))], data[:, 0], )
+    # plt.plot([i for i in range(len(newdata))], newdata[:, 0], )
+plt.show()
 exit(0)
-
 for displayidx in range(0, 1):
     for batteryname in metadata[0] + metadata[1]:
         name = 'ne_data/' + batteryname + 'v3.npy'

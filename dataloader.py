@@ -225,7 +225,7 @@ def get_xy_from_start(name, series_lens, i_low, i_upp, v_low, v_upp, q_low, q_up
 
 
 
-def get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor):
+def save_full_seqs(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor):
     """
     Args:
         n_cyc (int): The previous cycles number for model input
@@ -238,6 +238,7 @@ def get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_fact
         rul_factor (float): The RUL factor for normalization
         cap_factor (float): The capacity factor for normalization
     """
+    print('dealing with {}'.format(name))
     A = load_obj(f'./our_data/{name}')[name]
     A_rul = A['rul']
     A_dq = A['dq']
@@ -277,28 +278,43 @@ def get_xy(name, n_cyc, in_stride, fea_num, v_low, v_upp, q_low, q_upp, rul_fact
     all_fea[:, :, 0] = (all_fea[:, :, 0] - v_low) / (v_upp - v_low)
     all_fea[:, :, 1] = (all_fea[:, :, 1] - q_low) / (q_upp - q_low)
 
-    all_fea = np.lib.stride_tricks.sliding_window_view(all_fea, (
-    n_cyc, fea_num, 4))  # build sliding windows (x, window_shape), e.g. [0, 1, 2, 3] -> [0, 1, 2], [1, 2, 3]
-    cap_lbl = np.lib.stride_tricks.sliding_window_view(cap_lbl, (n_cyc,))
-    all_fea = all_fea.squeeze(axis=(1, 2,))
-    rul_lbl = rul_lbl[n_cyc - 1:]
-    all_fea = all_fea[:, (in_stride - 1)::in_stride, :, :]
-    cap_lbl = cap_lbl[:, (in_stride - 1)::in_stride, ]
+    extracted_fea = []
+    for cycidx in range(all_fea.shape[0]):
+        tmp_extracted_fea = [cap_lbl[cycidx]]
+        for i in range(4):
+            tmp_extracted_fea += preprocessv3(all_fea[cycidx, :, i], None)
+        extracted_fea.append(tmp_extracted_fea)
 
-    all_fea_new = np.zeros(all_fea.shape)
-    all_fea_new[:, :, :, 0] = (all_fea[:, :, :, 0] - v_low) / (v_upp - v_low)
-    all_fea_new[:, :, :, 1] = (all_fea[:, :, :, 1] - q_low) / (q_upp - q_low)
-    all_fea_new[:, :, :, 2] = all_fea[:, :, :, 2]
-    all_fea_new[:, :, :, 3] = all_fea[:, :, :, 3]
-    print(f'{name} length is {all_fea_new.shape[0]}',
-          'v_max:', '%.4f' % all_fea_new[:, :, :, 0].max(),
-          'q_manp.lx:', '%.4f' % all_fea_new[:, :, :, 1].max(),
-          'dv_max:', '%.4f' % all_fea_new[:, :, :, 2].max(),
-          'dq_max:', '%.4f' % all_fea_new[:, :, :, 3].max())
-    rul_lbl = rul_lbl / rul_factor
-    cap_lbl = cap_lbl / cap_factor
+    extracted_fea = np.array(extracted_fea)
 
-    return all_fea_new, np.hstack((rul_lbl.reshape(-1, 1), cap_lbl))
+    extracted_fea[:, 0] = extracted_fea[:, 0] / cap_factor
+    # all_lbl = all_lbl[seq_len - 1:]
+
+    np.save('our_data/' + name + 'v4.npy', extracted_fea)
+    np.save('our_data/' + name + '_rulv4.npy', rul_lbl)
+
+    # all_fea = np.lib.stride_tricks.sliding_window_view(all_fea, (
+    # n_cyc, fea_num, 4))  # build sliding windows (x, window_shape), e.g. [0, 1, 2, 3] -> [0, 1, 2], [1, 2, 3]
+    # cap_lbl = np.lib.stride_tricks.sliding_window_view(cap_lbl, (n_cyc,))
+    # all_fea = all_fea.squeeze(axis=(1, 2,))
+    # rul_lbl = rul_lbl[n_cyc - 1:]
+    # all_fea = all_fea[:, (in_stride - 1)::in_stride, :, :]
+    # cap_lbl = cap_lbl[:, (in_stride - 1)::in_stride, ]
+
+    # all_fea_new = np.zeros(all_fea.shape)
+    # all_fea_new[:, :, :, 0] = (all_fea[:, :, :, 0] - v_low) / (v_upp - v_low)
+    # all_fea_new[:, :, :, 1] = (all_fea[:, :, :, 1] - q_low) / (q_upp - q_low)
+    # all_fea_new[:, :, :, 2] = all_fea[:, :, :, 2]
+    # all_fea_new[:, :, :, 3] = all_fea[:, :, :, 3]
+    # print(f'{name} length is {all_fea_new.shape[0]}',
+    #       'v_max:', '%.4f' % all_fea_new[:, :, :, 0].max(),
+    #       'q_manp.lx:', '%.4f' % all_fea_new[:, :, :, 1].max(),
+    #       'dv_max:', '%.4f' % all_fea_new[:, :, :, 2].max(),
+    #       'dq_max:', '%.4f' % all_fea_new[:, :, :, 3].max())
+    # rul_lbl = rul_lbl / rul_factor
+    # cap_lbl = cap_lbl / cap_factor
+
+    # return all_fea_new, np.hstack((rul_lbl.reshape(-1, 1), cap_lbl))
 
 
 def get_xyv3(name, seq_len, v_low, v_upp, q_low, q_upp, rul_factor, cap_factor,
@@ -388,4 +404,11 @@ class Seriesset(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
-    get_xy()
+    new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
+    new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
+                 '5-4', '8-7', '7-7', '4-4', '1-3', '7-1', '5-2', '6-4', '9-8', '9-5', '6-3', '10-8', '1-6', '3-5',
+                 '2-6', '3-8', '3-6', '4-8', '7-8', '5-1', '2-8', '8-2', '1-5', '7-3', '10-2', '5-5', '9-2', '5-6',
+                 '1-7',
+                 '8-3', '4-1', '4-2', '1-4', '6-5', ]
+    new_test = ['9-6', '4-5', '1-2', '10-7', '1-1', '6-1', '6-6', '9-4', '10-4', '8-5', '5-3', '10-6',
+                '2-5', '6-2', '3-1', '8-8', '8-1', '8-6', '7-6', '6-8', '7-5', '10-1']
