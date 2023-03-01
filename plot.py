@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import interpolate
 metadata = np.load('ne_data/meta_data.npy', allow_pickle=True)
-
-
+fc_metadata = np.load('ne_data/fastcharge_meta.npy', allow_pickle=True)
+# print(type(metadata[0]+metadata[1]))
 def filter_out_training_extremes(data, ruls, threshold=0.05, rounds=10):
     for _ in range(rounds):
         dataidx = 1
@@ -37,6 +37,7 @@ def interp(x, y, num, ruls):
 
 
 namelist = metadata[0] + metadata[1]
+fcnamelist = fc_metadata
 for displayidx in range(0, 1):
     for batteryname in namelist:
         name = 'ne_data/' + batteryname + 'v4.npy'
@@ -62,10 +63,27 @@ for displayidx in range(0, 1):
 
         plt.plot([i for i in range(len(data))], data[:, displayidx], )
         # plt.plot([i for i in range(len(newdata))], newdata[:, displayidx], )
+    for batteryname in fcnamelist:
+        name = 'ne_data/' + batteryname + 'charge_v4.npy'
+        rul = 'ne_data/' + batteryname + 'charge_rulv4.npy'
+        a0 = np.load(name, allow_pickle=True)
+        ruls = np.load(rul, allow_pickle=True)
+        ratio = 1/1.2
+        # print(ruls[-1])
+        # newruls = change_ruls(ruls, ratio)
+        # print(newruls)
+        seqlen = a0.shape[0]
+        data, allrul = a0, ruls
+        # data, allrul = filter_out_training_extremes(a0, ruls, threshold=0.05)
+        # print(allrul)
+        sohs = data[:, 0]
+        newdata, newrul = interp([i for i in range(data.shape[0])], data,
+                                 int(ratio*data.shape[0]), allrul)
+        plt.plot([i for i in range(len(data))], data[:, displayidx], )
     # plt.savefig('train.jpg')
-    # plt.xlim((0, 100))
-    # plt.show()
-
+    plt.xlim((0, 500))
+    plt.show()
+exit(0)
 new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
 new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
              '5-4', '8-7', '7-7', '4-4', '1-3', '7-1', '5-2', '6-4', '9-8', '9-5', '6-3', '10-8', '1-6', '3-5',

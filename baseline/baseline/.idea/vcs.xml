@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$/CNN-ASTLSTM" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/battery_life_prediction" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/long-live-the-battery" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/nature_energy_degradation" vcs="Git" />
+  </component>
+</project>

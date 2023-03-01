@@ -2,6 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/baseline/baseline/CNN-ASTLSTM" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/baseline/baseline/long-live-the-battery" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/baseline/baseline/nature_energy_degradation" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/baseline/battery_life_prediction" vcs="Git" />
   </component>
 </project>
