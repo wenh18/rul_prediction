@@ -11,3 +11,4 @@ wandb/
 ./.idea/
 ./Learning-To-Compare-For-Text/
 ./baseline/
+*.zip
