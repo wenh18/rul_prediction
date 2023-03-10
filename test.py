@@ -19,6 +19,7 @@ import dataloader
 # from attmodels import make_model
 from vitmodels import ViT, RelationNetwork, weights_init, lstm_encoder, FFNEncoder
 import load_ne
+import load_ne_charge
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -81,9 +82,9 @@ parser.add_argument('--lr', help='initial learning rate', type=float, default=1e
 parser.add_argument('--gama', help='learning rate decay rate', type=float, default=0.9)  # 0.1
 
 parser.add_argument('--model-path', help='well-trained model weight path', type=str,
-                    default='output/1677033399.084015/LSTM_relu_b_32_67.pth')
+                    default='output/1677028680.7990086/LSTM_relu_b_32_67.pth')
 parser.add_argument('--cfg', help='parser args records file', type=str,
-                    default='output/1677033399.084015/config.yaml')
+                    default='output/1677028680.7990086/config.yaml')
 args = parser.parse_args()
 tmp = args.model_path
 with open(args.cfg, encoding='utf-8') as f:
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     data_aug_scale_ratios = [1.]
     for scale_ratio in args.data_aug_ratios:
         data_aug_scale_ratios += [1 / scale_ratio, scale_ratio]
-
+    # import pdb;pdb.set_trace()
     if OURDATA:
         new_valid = ['4-3', '5-7', '3-3', '2-3', '9-3', '10-5', '3-2', '3-7']
         new_train = ['9-1', '2-2', '4-7', '9-7', '1-8', '4-6', '2-7', '8-4', '7-2', '10-3', '2-4', '7-4', '3-4',
@@ -180,15 +181,16 @@ if __name__ == '__main__':
                                                           rul_factor=rul_factor, dataset_name='trainvalid',
                                                           seqnum=args.seriesnum,
                                                           data_aug_scale_ratios=data_aug_scale_ratios)
-        # train_fea = train_fea[:seriesnum]
-        # train_lbl = train_lbl[:seriesnum]
+        # valid_fea, valid_lbl = load_ne_charge.get_train_test_val(series_len=series_lens[0],
+        #                                                   rul_factor=rul_factor, seqnum=args.valid_max_len,
+        #                                                   )
         valid_fea, valid_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
                                                           rul_factor=rul_factor, dataset_name='valid',
                                                           seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
         retrieval_set = load_ne.get_retrieval_seq(rul_factor=rul_factor, seriesnum=5000)
-    print(train_fea.shape, train_lbl.shape, valid_fea.shape, valid_lbl.shape)
+    print(valid_fea.shape, valid_lbl.shape)
 
     trainset = TensorDataset(torch.Tensor(train_fea), torch.Tensor(train_lbl))
     validset = TensorDataset(torch.Tensor(valid_fea), torch.Tensor(valid_lbl))
@@ -232,7 +234,7 @@ if __name__ == '__main__':
         encoder = lstm_encoder(indim=train_fea.shape[2], hiddendim=args.lstm_hidden, fcdim=args.fc_hidden,
                                outdim=args.fc_out, n_layers=args.lstm_layer, dropout=args.dropout)
         # encoder = FFNEncoder(input_size=13*100, hidden_size=256)
-        encoder.load_state_dict(torch.load(args.model_path))
+        # encoder.load_state_dict(torch.load(args.model_path))
         relationmodel = RelationNetwork(input_size=2 * encoded_feature_dim, hidden_size=512)
         # relationmodel = FNNRelationNetwork(input_size=2 * encoded_feature_dim+1, hidden_size=512)
         encoder = encoder.to(device)
@@ -250,7 +252,7 @@ if __name__ == '__main__':
                                 parts_num_from_each_len=args.parts_num_per_ratio,
                                 scale_ratios=args.scale_ratios, except_ratios=args.except_ratios,
                                 data_aug_scale_ratios=data_aug_scale_ratios)
-        model, train_loss, valid_loss, total_loss = trainer.test(
-            train_loader, valid_loader, relationmodel=relationmodel, encoder=encoder, save_path=output_dir)
+        trainer.train(
+            train_loader, valid_loader, relationmodel=relationmodel, wandb=None, encoder=encoder, save_path=output_dir)
 
         print(time.time() - tic)

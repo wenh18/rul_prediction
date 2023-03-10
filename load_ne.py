@@ -122,8 +122,8 @@ def get_train_test_val(series_len=100, rul_factor=3000, dataset_name='train', se
     allseqs, allruls, batteryids = [], [], []
     batteryid = 0
     for batteryname in set:
-        seqname = 'ne_data/' + batteryname + 'v3.npy'
-        lblname = 'ne_data/' + batteryname + '_rulv3.npy'
+        seqname = 'ne_data/' + batteryname + '.npy'
+        lblname = 'ne_data/' + batteryname + '_rul.npy'
         seq = np.load(seqname, allow_pickle=True)
         lbls = np.load(lblname, allow_pickle=True)
         lbls = lbls / rul_factor
@@ -157,8 +157,8 @@ def get_retrieval_seq(pkl_dir='ne_data/', rul_factor=3000, seriesnum=None, datas
         set = metadata[0] + metadata[1]
     batteryid = 0
     for name in set:
-        all_fea = np.load(pkl_dir + name + 'v3.npy', allow_pickle=True)
-        A_rul = np.load(pkl_dir + name + '_rulv3.npy', allow_pickle=True).astype(float)
+        all_fea = np.load(pkl_dir + name + '.npy', allow_pickle=True)
+        A_rul = np.load(pkl_dir + name + '_rul.npy', allow_pickle=True).astype(float)
         seq_len = len(A_rul)
         A_rul /= rul_factor
         if seriesnum is not None and seriesnum < all_fea.shape[0]:
@@ -428,8 +428,8 @@ if __name__ == '__main__':
             extracted_fea = np.array(extracted_fea)
             # all_lbl = all_lbl[seq_len - 1:]
 
-            np.save(pkl_dir + key + 'v4.npy', extracted_fea)
-            np.save(pkl_dir + key + '_rulv4.npy', all_lbl)
+            np.save(pkl_dir + key + '.npy', extracted_fea)
+            np.save(pkl_dir + key + '_rul.npy', all_lbl)
 
             # all_fea = np.lib.stride_tricks.sliding_window_view(extracted_fea, (seq_len, 9))
             # # aux_lbl = np.lib.stride_tricks.sliding_window_view(aux_lbl, (n_cyc,))

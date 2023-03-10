@@ -183,7 +183,7 @@ if __name__ == '__main__':
         # train_fea = train_fea[:seriesnum]
         # train_lbl = train_lbl[:seriesnum]
         valid_fea, valid_lbl = load_ne.get_train_test_val(series_len=series_lens[0],
-                                                          rul_factor=rul_factor, dataset_name='valid',
+                                                          rul_factor=rul_factor, dataset_name='test',
                                                           seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
