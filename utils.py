@@ -429,79 +429,79 @@ class Trainer():
             print('training epoch:', epoch, 'learning rate:', encoder_optimizer.param_groups[0]['lr'])
             encoder.train()
             relationmodel.train()
-            # y_true, y_pred = [], []
-            # train_losses = []
-            # for step, (x, y) in enumerate(train_loader):
-            #     x = x.to(device)
-            #     encoded_target = encoder(x)
-            #     loss = 0
-            #     for batch_battery_idx in range(y.size(0)):
-            #         batteryidx = int(y[batch_battery_idx][2].item())
-            #         # seqs, ruls = self.randomly_sample_partsv2(batteryidx)
-            #         # TODO: ValueError: need at least one array to concatenate
-            #         seqs, ruls = self.randomly_sample_partsv3(batteryidx)
-            #         all_scores, all_ruls = [], []
-            #         # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
-            #         # encoded_target = encoder(tensor_target)
-            #         for original_seq_idx in range(len(seqs)):
-            #             tensor_source = torch.Tensor(seqs[original_seq_idx]).to(device)
-            #             encoded_source = encoder(tensor_source)
-            #             if encoded_source.size() != encoded_target[batch_battery_idx].size():
-            #                 repeated_encoded_target = encoded_target[batch_battery_idx].repeat(encoded_source.size(0),
-            #                                                                                    1)
-            #             else:
-            #                 repeated_encoded_target = encoded_target[batch_battery_idx]
-            #             relation_scores = relationmodel(encoded_source, repeated_encoded_target)
-            #             all_scores.append(relation_scores)
-            #             all_ruls.append(ruls[original_seq_idx])
-            #         # scale target source
-            #         # for scaleidx in range(len(self.scale_ratios)):
-            #         #
-            #         #     target_scale_ratio = self.scale_ratios[scaleidx]
-            #         #     scaled_target = x[batch_battery_idx][target_scale_ratio-1::target_scale_ratio, :]
-            #         #     scaled_target = scaled_target.unsqueeze(dim=0)
-            #         #     encoded_target = encoder(scaled_target)
-            #
-            #         # for sampleratioidx in range(len(seqs)):
-            #         #     ratio_pair = [sampleratioidx+1, scaleidx+1]
-            #         #     if ratio_pair in self.except_ratios:
-            #         #         continue
-            #         #     # print(ratio_pair)
-            #         #     # if sampleratioidx != 0 and scaleidx == sampleratioidx:
-            #         #     #     continue
-            #         #     tensor_seq = torch.Tensor(seqs[sampleratioidx]).cuda()
-            #         #     encoded_source = encoder(tensor_seq)
-            #         #     if encoded_source.size() != encoded_target.size():
-            #         #         unsqueezed_encoded_target = encoded_target.repeat(encoded_source.size(0), 1)
-            #         #     else:
-            #         #         unsqueezed_encoded_target = encoded_target
-            #         #     relation_scores = relationmodel(encoded_source, unsqueezed_encoded_target)
-            #         #     all_scores.append(relation_scores)
-            #         #
-            #         #     all_ruls.append(ruls[sampleratioidx] * target_scale_ratio)
-            #
-            #         all_scores = torch.hstack(all_scores)
-            #         all_ruls = torch.Tensor(np.hstack(all_ruls)).cuda()
-            #         all_ruls = all_ruls.reshape(-1, 1)
-            #
-            #         all_scores = F.softmax(all_scores, dim=0)
-            #         # all_scores = all_scores / torch.sum(all_scores)
-            #         # import pdb;pdb.set_trace()
-            #         all_scores = all_scores.unsqueeze(dim=0)
-            #         predicted_rul = torch.mm(all_scores, all_ruls)
-            #         loss += loss_fn(predicted_rul, y[batch_battery_idx][0].cuda())
-            #
-            #     loss /= y.size(0)
-            #     encoder_optimizer.zero_grad()
-            #     relationmodel_optimizer.zero_grad()
-            #     loss.backward()
-            #     encoder_optimizer.step()
-            #     relationmodel_optimizer.step()
-            #     train_loss.append(loss.cpu().detach().numpy())
-            #
-            #     if step % 40 == 0:
-            #         print('step:', step, 'train loss:', train_loss[-1], np.average(train_loss))
-            #         wandb.log({'loss:': np.average(train_loss), 'epoch': epoch})
+            y_true, y_pred = [], []
+            train_losses = []
+            for step, (x, y) in enumerate(train_loader):
+                x = x.to(device)
+                encoded_target = encoder(x)
+                loss = 0
+                for batch_battery_idx in range(y.size(0)):
+                    batteryidx = int(y[batch_battery_idx][2].item())
+                    # seqs, ruls = self.randomly_sample_partsv2(batteryidx)
+                    # TODO: ValueError: need at least one array to concatenate
+                    seqs, ruls = self.randomly_sample_partsv3(batteryidx)
+                    all_scores, all_ruls = [], []
+                    # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
+                    # encoded_target = encoder(tensor_target)
+                    for original_seq_idx in range(len(seqs)):
+                        tensor_source = torch.Tensor(seqs[original_seq_idx]).to(device)
+                        encoded_source = encoder(tensor_source)
+                        if encoded_source.size() != encoded_target[batch_battery_idx].size():
+                            repeated_encoded_target = encoded_target[batch_battery_idx].repeat(encoded_source.size(0),
+                                                                                               1)
+                        else:
+                            repeated_encoded_target = encoded_target[batch_battery_idx]
+                        relation_scores = relationmodel(encoded_source, repeated_encoded_target)
+                        all_scores.append(relation_scores)
+                        all_ruls.append(ruls[original_seq_idx])
+                    # scale target source
+                    # for scaleidx in range(len(self.scale_ratios)):
+                    #
+                    #     target_scale_ratio = self.scale_ratios[scaleidx]
+                    #     scaled_target = x[batch_battery_idx][target_scale_ratio-1::target_scale_ratio, :]
+                    #     scaled_target = scaled_target.unsqueeze(dim=0)
+                    #     encoded_target = encoder(scaled_target)
+
+                    # for sampleratioidx in range(len(seqs)):
+                    #     ratio_pair = [sampleratioidx+1, scaleidx+1]
+                    #     if ratio_pair in self.except_ratios:
+                    #         continue
+                    #     # print(ratio_pair)
+                    #     # if sampleratioidx != 0 and scaleidx == sampleratioidx:
+                    #     #     continue
+                    #     tensor_seq = torch.Tensor(seqs[sampleratioidx]).cuda()
+                    #     encoded_source = encoder(tensor_seq)
+                    #     if encoded_source.size() != encoded_target.size():
+                    #         unsqueezed_encoded_target = encoded_target.repeat(encoded_source.size(0), 1)
+                    #     else:
+                    #         unsqueezed_encoded_target = encoded_target
+                    #     relation_scores = relationmodel(encoded_source, unsqueezed_encoded_target)
+                    #     all_scores.append(relation_scores)
+                    #
+                    #     all_ruls.append(ruls[sampleratioidx] * target_scale_ratio)
+
+                    all_scores = torch.hstack(all_scores)
+                    all_ruls = torch.Tensor(np.hstack(all_ruls)).cuda()
+                    all_ruls = all_ruls.reshape(-1, 1)
+
+                    all_scores = F.softmax(all_scores, dim=0)
+                    # all_scores = all_scores / torch.sum(all_scores)
+                    # import pdb;pdb.set_trace()
+                    all_scores = all_scores.unsqueeze(dim=0)
+                    predicted_rul = torch.mm(all_scores, all_ruls)
+                    loss += loss_fn(predicted_rul, y[batch_battery_idx][0].cuda())
+
+                loss /= y.size(0)
+                encoder_optimizer.zero_grad()
+                relationmodel_optimizer.zero_grad()
+                loss.backward()
+                encoder_optimizer.step()
+                relationmodel_optimizer.step()
+                train_loss.append(loss.cpu().detach().numpy())
+
+                if step % 40 == 0:
+                    print('step:', step, 'train loss:', train_loss[-1], np.average(train_loss))
+                    wandb.log({'loss:': np.average(train_loss), 'epoch': epoch})
 
             print('started to evaluate')
 
