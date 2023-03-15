@@ -56,10 +56,11 @@ def interp(x, y, num, ruls, rul_factor):
     newruls.reverse()
     newruls = np.array(newruls).astype(float)
     newruls /= rul_factor
-    new_right_end_value = ruls[-1] * (num/len(x))
+    new_right_end_value = ruls[-1] * (num / len(x))
     for i in range(len(newruls)):
         newruls[i] += new_right_end_value
     return ynew, newruls
+
 
 def data_aug(feas, ruls, scale_ratios, rul_factor):
     augmented_feas, augmented_ruls = [], []
@@ -67,21 +68,25 @@ def data_aug(feas, ruls, scale_ratios, rul_factor):
         if int(scaleratio * feas.shape[0]) <= 100:
             continue
         augmented, rul = interp([i for i in range(feas.shape[0])], feas,
-                                int(scaleratio*feas.shape[0]), ruls, rul_factor)
+                                int(scaleratio * feas.shape[0]), ruls,
+                                rul_factor)
         augmented_feas.append(augmented)
         augmented_ruls.append(rul)
     return augmented_feas, augmented_ruls
+
 
 def split_seq(fullseq, rul_labels, seqlen, seqnum):
     if isinstance(fullseq, list):
         all_fea, all_lbls = [], []
         for seqidx in range(len(fullseq)):
-            tmp_all_fea = np.lib.stride_tricks.sliding_window_view(fullseq[seqidx], (seqlen, 9))
+            tmp_all_fea = np.lib.stride_tricks.sliding_window_view(
+                fullseq[seqidx], (seqlen, 9))
 
             tmp_all_fea = tmp_all_fea.squeeze()
             tmp_lbls = rul_labels[seqidx][seqlen - 1:]
             tmp_fullseqlen = rul_labels[seqidx][0]
-            fullseqlens = np.array([tmp_fullseqlen for _ in range(tmp_all_fea.shape[0])])
+            fullseqlens = np.array(
+                [tmp_fullseqlen for _ in range(tmp_all_fea.shape[0])])
             # print(tmp_lbls.shape, fullseqlens.shape, fullseq[seqidx].shape, rul_labels[seqidx].shape)
             lbls = np.vstack((tmp_lbls, fullseqlens)).T
             if seqnum <= tmp_all_fea.shape[0]:
@@ -94,7 +99,8 @@ def split_seq(fullseq, rul_labels, seqlen, seqnum):
         all_lbls = np.vstack(all_lbls)
         return all_fea, all_lbls
     else:
-        all_fea = np.lib.stride_tricks.sliding_window_view(fullseq, (seqlen, 9))
+        all_fea = np.lib.stride_tricks.sliding_window_view(
+            fullseq, (seqlen, 9))
         all_fea = all_fea.squeeze()
         # ruls = rul_labels[seqlen-1:]
         fullseqlen = rul_labels[0]
@@ -107,7 +113,11 @@ def split_seq(fullseq, rul_labels, seqlen, seqnum):
             return all_fea, lbls
 
 
-def get_train_test_val(series_len=100, rul_factor=3000, dataset_name='train', seqnum=500, data_aug_scale_ratios=None):
+def get_train_test_val(series_len=100,
+                       rul_factor=3000,
+                       dataset_name='train',
+                       seqnum=500,
+                       data_aug_scale_ratios=None):
 
     metadata = np.load('ne_data/meta_data.npy', allow_pickle=True)
     if dataset_name == 'train':
@@ -145,7 +155,10 @@ def get_train_test_val(series_len=100, rul_factor=3000, dataset_name='train', se
     return allseqs, allruls
 
 
-def get_retrieval_seq(pkl_dir='ne_data/', rul_factor=3000, seriesnum=None, dataset_name='trainvalid'):
+def get_retrieval_seq(pkl_dir='ne_data/',
+                      rul_factor=3000,
+                      seriesnum=None,
+                      dataset_name='trainvalid'):
     '''
     gets degradation curve that starts from the first cycle
     '''
@@ -158,7 +171,8 @@ def get_retrieval_seq(pkl_dir='ne_data/', rul_factor=3000, seriesnum=None, datas
     batteryid = 0
     for name in set:
         all_fea = np.load(pkl_dir + name + '.npy', allow_pickle=True)
-        A_rul = np.load(pkl_dir + name + '_rul.npy', allow_pickle=True).astype(float)
+        A_rul = np.load(pkl_dir + name + '_rul.npy',
+                        allow_pickle=True).astype(float)
         seq_len = len(A_rul)
         A_rul /= rul_factor
         if seriesnum is not None and seriesnum < all_fea.shape[0]:
@@ -183,7 +197,6 @@ if __name__ == '__main__':
     batch3 = temp3['batch']
 
     cycle_life = dict()
-
     '''the first batch'''
     temp = temp1
     batch = batch1
@@ -191,14 +204,12 @@ if __name__ == '__main__':
         a = int(list(temp[batch['cycle_life'][bat_num, 0]])[0][0])
         # cl=temp[batch['cycle_life'][bat_num,0]].value
         cycle_life.update({'a' + str(bat_num): a})
-
     '''the second batch'''
     temp = temp2
     batch = batch2
     for bat_num in range(batch['cycles'].shape[0]):
         a = int(list(temp[batch['cycle_life'][bat_num, 0]])[0][0])
         cycle_life.update({'b' + str(bat_num): a})
-
     '''the third batch'''
     temp = temp3
     batch = batch3
@@ -279,10 +290,13 @@ if __name__ == '__main__':
             # if right - left <= 1:
             #     continue
 
-            t = list(temp1[temp1[batch1['cycles'][num, 0]]['t'][j, :][0]])[0]#[left:right]
-            V = list(temp1[temp1[batch1['cycles'][num, 0]]['V'][j, :][0]])[0]#[left:right]
+            t = list(temp1[temp1[batch1['cycles'][num, 0]]['t'][j, :][0]])[
+                0]  #[left:right]
+            V = list(temp1[temp1[batch1['cycles'][num, 0]]['V'][j, :][0]])[
+                0]  #[left:right]
             Vc = change(V, t, fea_num)
-            Qc = list(temp1[temp1[batch1['cycles'][num, 0]]['Qc'][j, :][0]])[0]#[left:right]
+            Qc = list(temp1[temp1[batch1['cycles'][num, 0]]['Qc'][j, :][0]])[
+                0]  #[left:right]
             Qc = change(Qc, t, fea_num)
             QD = list(temp1[batch1['summary'][num, 0]]['QDischarge'][0, :])[j]
             tmp_fea = np.hstack((Vc.reshape(-1, 1), Qc.reshape(-1, 1)))
@@ -296,7 +310,8 @@ if __name__ == '__main__':
             try:
                 left_id = 0
                 left = np.where(np.abs(I - 1) < 0.001)[0][left_id]
-                while list(temp[temp[batch['cycles'][bat_num, 0]]['Qc'][j - 1, :][0]])[0][left] < 0.4:
+                while list(temp[temp[batch['cycles'][bat_num, 0]]['Qc'][
+                        j - 1, :][0]])[0][left] < 0.4:
                     left_id += 1
                     left = np.where(np.abs(I - 1) < 0.001)[0][left_id]
                 right = np.where(np.abs(I - 1) < 0.001)[0][-1]
@@ -305,12 +320,16 @@ if __name__ == '__main__':
             if right - left <= 1:
                 continue
 
-            t = list(temp2[temp2[batch2['cycles'][b_num, 0]]['t'][j, :][0]])[0]#[left:right]
-            V = list(temp2[temp2[batch2['cycles'][b_num, 0]]['V'][j, :][0]])[0]#[left:right]
+            t = list(temp2[temp2[batch2['cycles'][b_num, 0]]['t'][j, :][0]])[
+                0]  #[left:right]
+            V = list(temp2[temp2[batch2['cycles'][b_num, 0]]['V'][j, :][0]])[
+                0]  #[left:right]
             Vc = change(V, t, fea_num)
-            Qc = list(temp2[temp2[batch2['cycles'][b_num, 0]]['Qc'][j, :][0]])[0]#[left:right]
+            Qc = list(temp2[temp2[batch2['cycles'][b_num, 0]]['Qc'][j, :][0]])[
+                0]  #[left:right]
             Qc = change(Qc, t, fea_num)
-            QD = list(temp2[batch2['summary'][b_num, 0]]['QDischarge'][0, :])[j]
+            QD = list(temp2[batch2['summary'][b_num,
+                                              0]]['QDischarge'][0, :])[j]
             tmp_fea = np.hstack((Vc.reshape(-1, 1), Qc.reshape(-1, 1)))
 
             fea_list.append(tmp_fea)
@@ -352,8 +371,9 @@ if __name__ == '__main__':
 
     print(len(cycle_train), len(cycle_test), len(cycle_secondary))
 
+    np.save('ne_data/meta_data.npy',
+            [cycle_train, cycle_test, cycle_secondary])
 
-    # np.save('ne_data/meta_data.npy', [cycle_train, cycle_test, cycle_secondary])
     # exit(0)
     def get_xy(cyc_num, seq_len=100, pkl_dir='ne_data/'):
         fea = dict()
@@ -396,12 +416,17 @@ if __name__ == '__main__':
                     # if right - left <= 1:
                     #     continue
 
-                    t = list(temp[temp[batch['cycles'][bat_num, 0]]['t'][j - 1, :][0]])[0]#[left:right]
-                    V = list(temp[temp[batch['cycles'][bat_num, 0]]['V'][j - 1, :][0]])[0]#[left:right]
-                    Qc = list(temp[temp[batch['cycles'][bat_num, 0]]['Qc'][j - 1, :][0]])[0]#[left:right]
+                    t = list(temp[temp[batch['cycles'][bat_num, 0]]['t'][
+                        j - 1, :][0]])[0]  #[left:right]
+                    V = list(temp[temp[batch['cycles'][bat_num, 0]]['V'][
+                        j - 1, :][0]])[0]  #[left:right]
+                    Qc = list(temp[temp[batch['cycles'][bat_num, 0]]['Qc'][
+                        j - 1, :][0]])[0]  #[left:right]
                     Vc = change(V, t, fea_num)
                     Qc = change(Qc, t, fea_num)
-                    QD = list(temp[batch['summary'][bat_num, 0]]['QDischarge'][0, :])[j - 1]
+                    QD = list(
+                        temp[batch['summary'][bat_num,
+                                              0]]['QDischarge'][0, :])[j - 1]
                     tmp_fea = np.hstack((Vc.reshape(-1, 1), Qc.reshape(-1, 1)))
 
                 fea_i.append(np.expand_dims(tmp_fea, axis=0))
@@ -423,7 +448,8 @@ if __name__ == '__main__':
                 # the first element of feature is soh value
                 tmp_extracted_fea = [aux_lbl[cycidx]]
                 for i in range(4):
-                    tmp_extracted_fea += preprocessv3(all_fea[cycidx, :, i], None)
+                    tmp_extracted_fea += preprocessv3(all_fea[cycidx, :, i],
+                                                      None)
                 extracted_fea.append(tmp_extracted_fea)
             extracted_fea = np.array(extracted_fea)
             # all_lbl = all_lbl[seq_len - 1:]
@@ -456,12 +482,10 @@ if __name__ == '__main__':
 
         return fea, label
 
-
     def save_extracted_feas(cycle_train, cycle_test, cycle_secondary):
         get_xy(cycle_train)
         get_xy(cycle_test)
         get_xy(cycle_secondary)
-
 
     save_extracted_feas(cycle_train, cycle_test, cycle_secondary)
 
