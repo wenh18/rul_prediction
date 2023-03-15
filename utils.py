@@ -619,14 +619,14 @@ class Trainer():
                 x = x.to(device)
                 encoded_target = encoder(x)
                 loss = 0
-                ruls_list, nei_ruls_list = [], []
+                src_list, nei_list = [], []
                 for batch_battery_idx in range(y.size(0)):
                     batteryidx = int(y[batch_battery_idx][2].item())
                     # seqs, ruls = self.randomly_sample_partsv2(batteryidx)
                     # TODO: ValueError: need at least one array to concatenate
                     seqs, nei_seqs, ruls, nei_ruls = self.randomly_sample_partsv4_with_aug(
                         batteryidx)
-                    all_scores, nei_scores, all_ruls, all_nei_ruls = [], [], [], []
+                    all_scores, all_ruls = [], []
                     # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
                     # encoded_target = encoder(tensor_target)
                     for original_seq_idx in range(len(seqs)):
@@ -636,27 +636,22 @@ class Trainer():
                         tensor_nei = torch.Tensor(
                             nei_seqs[original_seq_idx]).to(device)
                         encoded_nei = encoder(tensor_nei)
+
+                        src_list.append(encoded_source)
+                        nei_list.append(encoded_nei)
+
                         if encoded_source.size(
                         ) != encoded_target[batch_battery_idx].size():
                             repeated_encoded_target = encoded_target[
                                 batch_battery_idx].repeat(
                                     encoded_source.size(0), 1)
-                            repeated_encoded_nei = encoded_nei[
-                                batch_battery_idx].repeat(
-                                    encoded_nei.size(0), 1)
                         else:
                             repeated_encoded_target = encoded_target[
                                 batch_battery_idx]
-                            repeated_encoded_nei = encoded_nei[
-                                batch_battery_idx]
                         relation_scores = relationmodel(
                             encoded_source, repeated_encoded_target)
-                        relation_nei_scores = relationmodel(
-                            encoded_nei, repeated_encoded_nei)
                         all_scores.append(relation_scores)
-                        nei_scores.append(relation_nei_scores)
                         all_ruls.append(ruls[original_seq_idx])
-                        all_nei_ruls.append(nei_ruls[original_seq_idx])
                     # scale target source
                     # for scaleidx in range(len(self.scale_ratios)):
                     #
@@ -686,17 +681,10 @@ class Trainer():
                     all_scores = torch.hstack(all_scores)
                     all_scores = F.softmax(all_scores, dim=0)
                     all_scores = all_scores.unsqueeze(dim=0)
-                    nei_scores = torch.hstack(nei_scores)
-                    nei_scores = F.softmax(nei_scores, dim=0)
-                    nei_scores = nei_scores.unsqueeze(dim=0)
 
                     all_ruls = torch.Tensor(np.hstack(all_ruls))  # .cuda()
                     all_ruls = all_ruls.reshape(-1, 1)
-                    all_nei_ruls = torch.Tensor(np.hstack(all_nei_ruls))
-                    all_nei_ruls = all_nei_ruls.reshape(-1, 1)
 
-                    ruls_list.append(all_ruls)
-                    nei_ruls_list.append(all_nei_ruls)
                     # all_scores = all_scores / torch.sum(all_scores)
                     # import pdb;pdb.set_trace()
                     predicted_rul = torch.mm(all_scores, all_ruls)
@@ -704,7 +692,9 @@ class Trainer():
                                     y[batch_battery_idx][0].cuda())
 
                 loss /= y.size(0)
-                loss += contrastive_loss(ruls_list, nei_ruls_list, 0.5)
+                print("Loss without contrastive: ", loss)
+                loss += contrastive_loss(src_list, nei_list, 0.5)
+                print("Loss with contrastive: ", loss)
                 encoder_optimizer.zero_grad()
                 relationmodel_optimizer.zero_grad()
                 loss.backward()

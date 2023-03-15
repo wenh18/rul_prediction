@@ -322,7 +322,7 @@ if __name__ == '__main__':
         '''
         tic = time.time()
         # seed_torch(0)
-        device = 'cuda'
+        device = 'cpu'
         # model = CRNN(100, 4, 64, 64)
         # encoder, relationmodel = make_model(h=4,N=1,d_in=14,d_model=64,d_ff=64,d_embedding=32,dropout=0.5)
         encoded_feature_dim = 128
