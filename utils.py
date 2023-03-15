@@ -116,6 +116,13 @@ def contrastive_loss(ruls1, ruls2, tao):
         ruls.append(ruls1[i])
 
     def sim(tensor1, tensor2):
+        tensor1 = tensor1.squeeze(-1)
+        tensor2 = tensor2.squeeze(-1)
+        pad = tensor1.shape[0] - tensor2.shape[0]
+        if pad > 0:
+            tensor1 = torch.cat(tensor1, torch.zeros([pad]))
+        elif pad < 0:
+            tensor2 = torch.cat(tensor2, torch.zeros([-pad]))
         return torch.dot(tensor1,
                          tensor2) / (math.sqrt(torch.dot(tensor1, tensor1)) *
                                      math.sqrt(torch.dot(tensor2, tensor2)))

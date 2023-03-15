@@ -5,8 +5,8 @@ from einops import rearrange, repeat
 # from einops.layers.torch import Rearrange
 import torch.nn.functional as F
 
-
 # helpers
+
 
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
@@ -14,7 +14,9 @@ def pair(t):
 
 # classes
 
+
 class PositionalEmbedding(nn.Module):
+
     def __init__(self, d_model, max_len=5000):
         super(PositionalEmbedding, self).__init__()
         # Compute the positional encodings once in log space.
@@ -22,7 +24,8 @@ class PositionalEmbedding(nn.Module):
         pe.require_grad = False
 
         position = torch.arange(0, max_len).float().unsqueeze(1)
-        div_term = (torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model)).exp()
+        div_term = (torch.arange(0, d_model, 2).float() *
+                    -(math.log(10000.0) / d_model)).exp()
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -35,6 +38,7 @@ class PositionalEmbedding(nn.Module):
 
 
 class PreNorm(nn.Module):
+
     def __init__(self, dim, fn):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
@@ -45,28 +49,27 @@ class PreNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
+
     def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, dim),
-            nn.Dropout(dropout)
-        )
+        self.net = nn.Sequential(nn.Linear(dim, hidden_dim), nn.GELU(),
+                                 nn.Dropout(dropout),
+                                 nn.Linear(hidden_dim,
+                                           dim), nn.Dropout(dropout))
 
     def forward(self, x):
         return self.net(x)
 
 
 class Attention(nn.Module):
+
     def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
         super().__init__()
         inner_dim = dim_head * heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
 
         self.attend = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
@@ -75,12 +78,12 @@ class Attention(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+            nn.Dropout(dropout)) if project_out else nn.Identity()
 
     def forward(self, x):
         qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+        q, k, v = map(
+            lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
@@ -93,14 +96,21 @@ class Attention(nn.Module):
 
 
 class Transformer(nn.Module):
+
     def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
         super().__init__()
         self.layers = nn.ModuleList([])
         for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
-            ]))
+            self.layers.append(
+                nn.ModuleList([
+                    PreNorm(
+                        dim,
+                        Attention(dim,
+                                  heads=heads,
+                                  dim_head=dim_head,
+                                  dropout=dropout)),
+                    PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout))
+                ]))
 
     def forward(self, x):
         for attn, ff in self.layers:
@@ -110,7 +120,17 @@ class Transformer(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, num_classes, in_dim, dim, depth, heads, mlp_dim, pool='cls', dim_head=64, dropout=0.,
+
+    def __init__(self,
+                 num_classes,
+                 in_dim,
+                 dim,
+                 depth,
+                 heads,
+                 mlp_dim,
+                 pool='cls',
+                 dim_head=64,
+                 dropout=0.,
                  emb_dropout=0.):
         super().__init__()
         # image_height, image_width = pair(image_size)
@@ -120,7 +140,9 @@ class ViT(nn.Module):
 
         # num_patches = (image_height // patch_height) * (image_width // patch_width)
         # patch_dim = channels * patch_height * patch_width
-        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+        assert pool in {
+            'cls', 'mean'
+        }, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         # self.to_patch_embedding = nn.Sequential(
         #     # Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_height, p2=patch_width),  # torch.Size([1, 49, 3072])
@@ -134,15 +156,14 @@ class ViT(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
 
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim,
+                                       dropout)
 
         self.pool = pool
         self.to_latent = nn.Identity()
 
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(dim),
-            nn.Linear(dim, num_classes)
-        )
+        self.mlp_head = nn.Sequential(nn.LayerNorm(dim),
+                                      nn.Linear(dim, num_classes))
 
     def forward(self, img):
         x = self.to_patch_embedding(img)
@@ -162,12 +183,17 @@ class ViT(nn.Module):
 
 
 class lstm_encoder(nn.Module):
+
     def __init__(self, indim, hiddendim, fcdim, outdim, n_layers, dropout=0.4):
         super(lstm_encoder, self).__init__()
-        self.lstm1 = torch.nn.LSTM(input_size=indim, hidden_size=hiddendim, batch_first=True, bidirectional=False, num_layers=n_layers)
+        self.lstm1 = torch.nn.LSTM(input_size=indim,
+                                   hidden_size=hiddendim,
+                                   batch_first=True,
+                                   bidirectional=False,
+                                   num_layers=n_layers)
         # self.lstm2 = torch.nn.LSTM(input_size=hiddendim, hidden_size=hiddendim, batch_first=True, bidirectional=False, num_layers=n_layers)
         self.dropout = torch.nn.Dropout(dropout)
-        self.fc1 = torch.nn.Linear(hiddendim*n_layers, fcdim)
+        self.fc1 = torch.nn.Linear(hiddendim * n_layers, fcdim)
         self.bn1 = torch.nn.LayerNorm(normalized_shape=fcdim)
         self.fc2 = torch.nn.Linear(fcdim, outdim)
         self.init_weights()
@@ -192,6 +218,7 @@ class lstm_encoder(nn.Module):
         # x = F.sigmoid(x)
         return x
 
+
 class RelationNetwork(nn.Module):
     """docstring for RelationNetwork"""
 
@@ -209,9 +236,14 @@ class RelationNetwork(nn.Module):
         cosine = F.cosine_similarity(source, target)
         return cosine
 
+
 class FNNRelationNetwork(nn.Module):
+
     def __init__(self, input_size, hidden_size):
-        super(FNNRelationNetwork, self,).__init__()
+        super(
+            FNNRelationNetwork,
+            self,
+        ).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, 1)
         self.bn1 = nn.BatchNorm1d(num_features=hidden_size)
@@ -224,19 +256,28 @@ class FNNRelationNetwork(nn.Module):
         x = self.fc2(x)
         return x
 
+
 class FFNEncoder(nn.Module):
+
     def __init__(self, input_size, hidden_size):
-        super(FFNEncoder, self,).__init__()
+        super(
+            FFNEncoder,
+            self,
+        ).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, 1)
         self.bn1 = nn.BatchNorm1d(num_features=hidden_size)
 
     def forward(self, seq):
+        # print("SEQ: ", seq.shape)
         x = seq.reshape(seq.size(0), -1)
+        # print("X: ", x.shape)
         x = self.fc1(x)
+        # print("X1: ", x.shape)
         # x = self.bn1(x)
         x = F.relu(x)  # hiddensize->hiddensize
         x = self.fc2(x)
+        # print("X2: ", x.shape)
         return x
 
 
@@ -278,8 +319,7 @@ if __name__ == '__main__':
         heads=8,
         mlp_dim=2048,
         dropout=0.1,
-        emb_dropout=0.1
-    )
+        emb_dropout=0.1)
     import numpy as np
 
     x = torch.Tensor(np.random.rand(1, 1500, 14))
