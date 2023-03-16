@@ -109,20 +109,16 @@ def cutoff_zeros(seq):
 
 def contrastive_loss(ruls1, ruls2, tao):
     ruls = []
-    assert len(ruls1) == len(ruls2)
-    N = len(ruls1)
+    assert ruls1.shape[0] == ruls2.shape[0]
+    N = ruls1.shape[0]
     for i in range(N):
         ruls.append(ruls2[i])
         ruls.append(ruls1[i])
 
     def sim(tensor1, tensor2):
+        assert tensor1.shape[0] == tensor2.shape[0]
         tensor1 = tensor1.squeeze(-1)
         tensor2 = tensor2.squeeze(-1)
-        pad = tensor1.shape[0] - tensor2.shape[0]
-        if pad > 0:
-            tensor1 = torch.cat(tensor1, torch.zeros([pad]))
-        elif pad < 0:
-            tensor2 = torch.cat(tensor2, torch.zeros([-pad]))
         return torch.dot(tensor1,
                          tensor2) / (math.sqrt(torch.dot(tensor1, tensor1)) *
                                      math.sqrt(torch.dot(tensor2, tensor2)))
@@ -138,7 +134,7 @@ def contrastive_loss(ruls1, ruls2, tao):
     L = 0
     for i in range(N):
         L += _l(2 * i, 2 * i + 1) + _l(2 * i + 1, 2 * i)
-    return L
+    return L / (2 * N)
 
 
 class Trainer():
@@ -626,7 +622,6 @@ class Trainer():
                 x = x.to(device)
                 encoded_target = encoder(x)
                 loss = 0
-                src_list, nei_list = [], []
                 for batch_battery_idx in range(y.size(0)):
                     batteryidx = int(y[batch_battery_idx][2].item())
                     # seqs, ruls = self.randomly_sample_partsv2(batteryidx)
@@ -643,9 +638,6 @@ class Trainer():
                         tensor_nei = torch.Tensor(
                             nei_seqs[original_seq_idx]).to(device)
                         encoded_nei = encoder(tensor_nei)
-
-                        src_list.append(encoded_source)
-                        nei_list.append(encoded_nei)
 
                         if encoded_source.size(
                         ) != encoded_target[batch_battery_idx].size():
@@ -695,13 +687,13 @@ class Trainer():
                     # all_scores = all_scores / torch.sum(all_scores)
                     # import pdb;pdb.set_trace()
                     predicted_rul = torch.mm(all_scores, all_ruls)
+                    c_l = contrastive_loss(encoded_source, encoded_nei, 0.5)
+                    print("contrastive loss: ", c_l)
                     loss += loss_fn(predicted_rul,
                                     y[batch_battery_idx][0].cuda())
+                    loss += c_l
 
                 loss /= y.size(0)
-                print("Loss without contrastive: ", loss)
-                loss += contrastive_loss(src_list, nei_list, 0.5)
-                print("Loss with contrastive: ", loss)
                 encoder_optimizer.zero_grad()
                 relationmodel_optimizer.zero_grad()
                 loss.backward()
