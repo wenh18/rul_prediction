@@ -25,7 +25,7 @@ import torch.optim as optim
 
 from torch import nn
 from torch.autograd import Variable
-from torch.utils.data import DataLoader, Dataset, Sampler, TensorDataset
+from torch.utils.data import DataLoader, Dataset, Sampler, TensorDataset, BatchSampler
 from torch.utils.data.sampler import RandomSampler
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
@@ -123,10 +123,11 @@ if __name__ == '__main__':
     v_upp = 3.60
     q_low = 610
     q_upp = 1190
-    rul_factor = 3000.
+    rul_factor = 1  # 3000
     cap_factor = 1190
     i_low = -2199
     i_upp = 5498
+    batch_size = 32
     pkl_dir = './our_data/'
     # pkl_list = os.listdir(pkl_dir)
     # pkl_list = sorted(pkl_list, key=lambda x: int(x.split('-')[0]) * 10 + int(x[-5]))
@@ -291,17 +292,32 @@ if __name__ == '__main__':
             seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
-        retrieval_set = load_ne.get_retrieval_seq(rul_factor=rul_factor,
-                                                  seriesnum=5000)
+        retrieval_set = load_ne.get_retrieval_seq_v2(rul_factor=rul_factor,
+                                                     seq_len=seq_len,
+                                                     seriesnum=5000)
     print(train_fea.shape, train_lbl.shape, valid_fea.shape, valid_lbl.shape)
-
+    # features: samples, sample_len, feature_num
+    # label: rul, tot_seq_len, tot_seq_num
     trainset = TensorDataset(torch.Tensor(train_fea), torch.Tensor(train_lbl))
     validset = TensorDataset(torch.Tensor(valid_fea), torch.Tensor(valid_lbl))
 
-    train_loader = DataLoader(trainset,
-                              batch_size=args.batch_size,
-                              shuffle=True)
-    valid_loader = DataLoader(validset, batch_size=args.valid_batch_size)
+    train_align_sampler = utils.SeqSampler(trainset)
+    train_batch_sampler = BatchSampler(train_align_sampler,
+                                       batch_size=batch_size,
+                                       drop_last=True)
+    train_loader = DataLoader(
+        trainset,
+        #   batch_size=args.batch_size,
+        batch_sampler=train_batch_sampler)
+
+    valid_align_sampler = utils.SeqSampler(validset)
+    valid_batch_sampler = BatchSampler(valid_align_sampler,
+                                       batch_size=batch_size,
+                                       drop_last=True)
+    valid_loader = DataLoader(
+        validset,
+        #   batch_size=args.valid_batch_size,
+        batch_sampler=valid_batch_sampler)
 
     directory_based_on_time = str(time.time())
 
@@ -378,114 +394,3 @@ if __name__ == '__main__':
             save_path=output_dir)
 
         print(time.time() - tic)
-
-# else:  # model has been pre-trained on common dataset
-#     lamda = 0.0
-#     train_weight9 = [0., 0.1, 0., 0., 0.1, 0., 0., 0., 0., ]
-#     valid_weight9 = [0. if (i != 0) else 0.1 for i in train_weight9]
-#     train_alpha = torch.Tensor(train_weight9 + [0.])
-#     valid_alpha = torch.Tensor(valid_weight9 + [0.])
-#     device = 'cuda'
-#
-#     pretrain_model_path = './model/wx_inner/wx_inner_pretrain_end.pt'
-#     finetune_model_path = './model/wx_inner/wx_inner_finetune'
-#
-#     device = 'cuda'
-#     trainer = Trainer(lr=8e-4, n_epochs=None, device=device, patience=1200,
-#                       lamda=lamda, alpha=None, model_name=None)
-#
-#     res_dict = {}
-#
-#     for name in new_test[:]:
-#
-#         stride = 1
-#         test_fea, test_lbl = [], []
-#         tmp_fea, tmp_lbl = all_loader[name]['fea'], all_loader[name]['lbl']
-#         test_fea.append(tmp_fea[::stride])
-#         test_lbl.append(tmp_lbl[::stride])
-#         test_fea = np.vstack(test_fea)
-#         test_lbl = np.vstack(test_lbl).squeeze()
-#
-#         batch_size = 20 if len(test_fea) % 20 != 1 else 21
-#         rul_true, rul_pred, rul_base, SOH_TRUE, SOH_PRED, SOH_BASE = [], [], [], [], [], []
-#
-#         for i in range(test_fea.shape[0] // batch_size + 1):
-#
-#             test_fea_ = test_fea[i * batch_size: i * batch_size + batch_size].transpose(0, 3, 2, 1)
-#             test_lbl_ = test_lbl[i * batch_size: i * batch_size + batch_size]
-#             testset = TensorDataset(torch.Tensor(test_fea_), torch.Tensor(test_lbl_))
-#             test_loader = DataLoader(testset, batch_size=batch_size, )
-#
-#             if test_fea_.shape[0] == 0: continue
-#
-#             model = CRNN(100, 4, 64, 64)
-#             model = model.to(device)
-#             # model.load_state_dict(torch.load(pretrain_model_path))
-#
-#             _, y_pred, _, _, soh_pred = trainer.test(test_loader, model)
-#             rul_base.append(y_pred.cpu().detach().numpy())
-#             SOH_BASE.append(soh_pred.cpu().detach().numpy())
-#
-#             for p in model.soh.parameters():
-#                 p.requires_grad = False
-#             for p in model.rul.parameters():
-#                 p.requires_grad = False
-#             for p in model.cnn.parameters():
-#                 p.requires_grad = False
-#
-#             tic = time.time()
-#             seed_torch(2021)
-#
-#             num_epochs = 120
-#             model_load = False
-#             trainer = FineTrainer(lr=1e-4, n_epochs=num_epochs, device=device, patience=1000,
-#                                   lamda=lamda, train_alpha=train_alpha, valid_alpha=valid_alpha,
-#                                   model_name=finetune_model_path)
-#             model, train_loss, valid_loss, total_loss, added_loss = trainer.train(test_loader, test_loader, model,
-#                                                                                   model_load)
-#
-#             y_true, y_pred, mse_loss, soh_true, soh_pred = trainer.test(test_loader, model)
-#             rul_true.append(y_true.cpu().detach().numpy().reshape(-1, 1))
-#             rul_pred.append(y_pred.cpu().detach().numpy())
-#             SOH_TRUE.append(soh_true.cpu().detach().numpy())
-#             SOH_PRED.append(soh_pred.cpu().detach().numpy())
-#
-#         rul_true = np.vstack(rul_true).squeeze()
-#         rul_pred = np.vstack(rul_pred).squeeze()
-#         rul_base = np.vstack(rul_base).squeeze()
-#         SOH_TRUE = np.vstack(SOH_TRUE)
-#         SOH_PRED = np.vstack(SOH_PRED)
-#         SOH_BASE = np.vstack(SOH_BASE)
-#
-#         fig = plt.figure(figsize=(20, 10))
-#         plt.subplot(121)
-#         plt.plot(rul_true[:] * rul_factor, '.', label='true')
-#         plt.plot(rul_pred[:] * rul_factor, '.', label='transfer')
-#         plt.legend(fontsize=20)
-#         plt.title(f'{name} cycle life ({len(test_fea)}): RUL', fontsize=20)
-#         plt.xlabel('Cycle', fontsize=20)
-#         plt.ylabel('RUL', fontsize=20)
-#         plt.subplot(122)
-#         for seq_num in range(9, 10):
-#             plt.plot(SOH_TRUE[:, seq_num] * cap_factor, '.', label='true')
-#             plt.plot(SOH_PRED[:, seq_num] * cap_factor, '.', label='transfer')
-#         plt.legend(fontsize=20)
-#         plt.title(f'{name}: Capacity', fontsize=20)
-#         plt.xlabel('Cycle', fontsize=20)
-#         plt.ylabel('Capacity', fontsize=20)
-#         plt.show()
-#
-#         res_dict.update({name: {
-#             'rul': {
-#                 'true': rul_true[:] * rul_factor,
-#                 'base': rul_base[:] * rul_factor,
-#                 'transfer': rul_pred[:] * rul_factor,
-#             },
-#             'soh': {
-#                 'true': SOH_TRUE[:, 9] * cap_factor,
-#                 'base': SOH_BASE[:, 9] * cap_factor,
-#                 'transfer': SOH_PRED[:, 9] * cap_factor,
-#             },
-#         }
-#         })
-#         save_obj(res_dict, './result/res_dict')

@@ -55,7 +55,8 @@ def interp(x, y, num, ruls, rul_factor):
     newruls = [i for i in range(1, ynew.shape[0] + 1)]
     newruls.reverse()
     newruls = np.array(newruls).astype(float)
-    newruls /= rul_factor
+    # remove rul_factor
+    # newruls /= rul_factor
     new_right_end_value = ruls[-1] * (num / len(x))
     for i in range(len(newruls)):
         newruls[i] += new_right_end_value
@@ -64,6 +65,7 @@ def interp(x, y, num, ruls, rul_factor):
 
 def data_aug(feas, ruls, scale_ratios, rul_factor):
     augmented_feas, augmented_ruls = [], []
+    print(feas.shape)
     for scaleratio in scale_ratios:
         if int(scaleratio * feas.shape[0]) <= 100:
             continue
@@ -97,6 +99,7 @@ def split_seq(fullseq, rul_labels, seqlen, seqnum):
                 all_lbls.append(lbls)
         all_fea = np.vstack(all_fea)
         all_lbls = np.vstack(all_lbls)
+        all_lbls = all_lbls.astype(int)
         return all_fea, all_lbls
     else:
         all_fea = np.lib.stride_tricks.sliding_window_view(
@@ -107,6 +110,7 @@ def split_seq(fullseq, rul_labels, seqlen, seqnum):
         lbls = rul_labels[seqlen - 1:]
         fullseqlens = np.array([fullseqlen for _ in range(all_fea.shape[0])])
         lbls = np.vstack((lbls, fullseqlens)).T
+        lbls = lbls.astype(int)
         if seqnum <= all_fea.shape[0]:
             return all_fea[:seqnum], lbls[:seqnum]
         else:
@@ -136,7 +140,8 @@ def get_train_test_val(series_len=100,
         lblname = 'ne_data/' + batteryname + '_rul.npy'
         seq = np.load(seqname, allow_pickle=True)
         lbls = np.load(lblname, allow_pickle=True)
-        lbls = lbls / rul_factor
+        # remove rul_factor
+        # lbls = lbls / rul_factor
         if data_aug_scale_ratios is not None:
             seqs, ruls = data_aug(seq, lbls, data_aug_scale_ratios, rul_factor)
             feas, ruls = split_seq(seqs, ruls, series_len, seqnum)
@@ -174,13 +179,77 @@ def get_retrieval_seq(pkl_dir='ne_data/',
         A_rul = np.load(pkl_dir + name + '_rul.npy',
                         allow_pickle=True).astype(float)
         seq_len = len(A_rul)
-        A_rul /= rul_factor
+        # # remove rul_factor
+        # A_rul /= rul_factor
+        '''
+        all_fea [seq,features]
+        A_rul [seq,]
+        '''
+        print(all_fea.shape, A_rul.shape)
         if seriesnum is not None and seriesnum < all_fea.shape[0]:
             all_fea = all_fea[:seriesnum]
             A_rul = A_rul[:seriesnum]
         retrieval_set[batteryid] = [all_fea, A_rul, seq_len, batteryid]
         batteryid += 1
     return retrieval_set
+
+
+def get_retrieval_seq_v2(pkl_dir='ne_data/',
+                         rul_factor=3000,
+                         seriesnum=None,
+                         seq_len=100,
+                         dataset_name='trainvalid'):
+    '''
+    gets degradation curve that starts from the first cycle
+    '''
+    retrieval_set = {}
+    metadata = np.load('ne_data/meta_data.npy', allow_pickle=True)
+    if dataset_name == 'train':
+        set = metadata[0]
+    elif dataset_name == 'trainvalid':
+        set = metadata[0] + metadata[1]
+    batteryid = 0
+    for name in set:
+        all_fea = np.load(pkl_dir + name + '.npy', allow_pickle=True)
+        A_rul = np.load(pkl_dir + name + '_rul.npy',
+                        allow_pickle=True).astype(float)
+        tot_seq_len = A_rul[0]
+        # # remove rul_factor
+        # A_rul /= rul_factor
+        '''
+        all_fea [seq,features]
+        A_rul [seq,]
+        '''
+        print(all_fea.shape, A_rul.shape)
+        for i in range(len(A_rul)):
+            start = i
+            tail = i + seq_len
+            if tail > len(A_rul):
+                break
+            if tail in retrieval_set.keys():
+                retrieval_set[tail - 1].append(
+                    [all_fea[start:tail], A_rul[i], tot_seq_len, batteryid])
+            else:
+                retrieval_set[tail - 1] = [[
+                    all_fea[start:tail], A_rul[i], tot_seq_len, batteryid
+                ]]
+        batteryid += 1
+
+    new_retrieval_set = {}
+    for k in retrieval_set.keys():
+        all_fea_matrix, all_ruls, all_seq_len, all_battery_id = [], [], [], []
+        for item in retrieval_set[k]:
+            all_fea_matrix.append(item[0])
+            all_ruls.append(item[1])
+            all_seq_len.append(item[2])
+            all_battery_id.append(item[3])
+        new_retrieval_set[k] = [
+            np.array(all_fea_matrix),
+            np.array(all_ruls),
+            np.array(all_seq_len),
+            np.array(all_battery_id)
+        ]
+    return new_retrieval_set
 
 
 if __name__ == '__main__':
