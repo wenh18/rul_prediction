@@ -198,6 +198,7 @@ class Trainer():
         self.lr = lr
         self.n_epochs = n_epochs
         self.device = device
+        self.rul_factor = rulfactor
         # self.patience = patience
         # self.model_name = model_name
         # self.lamda = lamda
@@ -701,6 +702,25 @@ class Trainer():
         # ruls = torch.reshape(ruls, (-1, 1))
         return encoded_feas, ruls
 
+    def generate_encoded_databasev3(self,
+                                    encoder,
+                                    stride=2,
+                                    end_cyc=500,
+                                    batchsize=400):
+        '''
+        used when testing, the encoder has been trained well, so it can encode all the series in retrieval set and wait
+        the target sequence to appear
+        '''
+        new_retrieval_set = {}
+        for k in self.retrieval_set.keys():
+            tmp_feas = self.retrieval_set[k][0]
+            encoded_tmp_feas = encoder(torch.Tensor(tmp_feas).cuda())
+            rul = self.retrieval_set[k][1]
+            seq_len = self.retrieval_set[k][2]
+            battery_id = self.retrieval_set[k][3]
+            new_retrieval_set[k] = [encoded_tmp_feas,rul,seq_len,battery_id]
+        return new_retrieval_set
+
     def select_source_seqs(self, battery_seq, batteryidx):
         seqs, batteryids = [], []
         for k, v in self.retreival_set.items():
@@ -750,8 +770,14 @@ class Trainer():
                 encoded_target = encoder(x)
                 loss = 0
                 tail_point = int(y[0][1] - y[0][0])
+
+                # if step > 100:
+                #     break
+
+                if tail_point not in self.retrieval_set.keys():
+                    print(f"No key {tail_point}")
+                    continue
                 retrieval_sub_set = self.retrieval_set[tail_point]
-                print(tail_point, retrieval_sub_set[0].shape)
                 seqs = retrieval_sub_set[0]
                 ruls = retrieval_sub_set[1]
 
@@ -761,6 +787,7 @@ class Trainer():
                     # encoded_target = encoder(tensor_target)
                     tensor_source = torch.Tensor(seqs).to(device)
                     encoded_source = encoder(tensor_source)
+
                     if encoded_source.size() != encoded_target[i].size():
                         repeated_encoded_target = encoded_target[i].repeat(
                             encoded_source.size(0), 1)
@@ -775,17 +802,18 @@ class Trainer():
                     all_scores = F.softmax(relation_scores, dim=0)
                     all_scores = all_scores.unsqueeze(dim=0)
 
-                    all_ruls = torch.Tensor(ruls)  # .cuda()
+                    all_ruls = torch.Tensor(ruls).cuda()
                     all_ruls = all_ruls.reshape(-1, 1)
+                    
+                    all_ruls /= self.rul_factor
 
                     # all_scores = all_scores / torch.sum(all_scores)
                     # import pdb;pdb.set_trace()
                     predicted_rul = torch.mm(all_scores, all_ruls)
-                    print(predicted_rul, y[i][0])
                     # c_l = contrastive_loss(encoded_source, encoded_nei, 0.5)
                     # print("contrastive loss: ", c_l)
                     # loss += c_l
-                    loss += loss_fn(predicted_rul, y[i][0].cuda())
+                    loss += loss_fn(predicted_rul, y[i][0].cuda() / self.rul_factor)
 
                 loss /= y.size(0)
                 encoder_optimizer.zero_grad()
@@ -804,97 +832,105 @@ class Trainer():
                     })
 
             print('started to evaluate')
-
-            encoder.eval()
-            relationmodel.eval()
-            y_true, y_pred = [], []
-            with torch.no_grad():
-
-                encoded_source, ruls = self.generate_encoded_databasev2(
-                    encoder)
-
-                for step, (x, y) in enumerate(valid_loader):
-                    assert y.size(0) == 1
-                    x = x.to(device)
-                    all_scores, all_ruls = [], []
-                    encoded_target = encoder(x)
-                    for original_battery_idx in range(len(encoded_source)):
-                        if encoded_target.size(
-                        ) != encoded_source[original_battery_idx].size():
-                            expanded_encoded_target = encoded_target.repeat(
-                                encoded_source[original_battery_idx].size(0),
-                                1)
-                        relation_scores = relationmodel(
-                            encoded_source[original_battery_idx],
-                            expanded_encoded_target)
-                        all_scores.append(relation_scores)
-                        all_ruls.append(ruls[original_battery_idx])
-                        del expanded_encoded_target
-                        encoded_source[original_battery_idx].cpu()
-
-                    # for scaleidx in range(len(self.scale_ratios)):
-                    #     target_scale_ratio = self.scale_ratios[scaleidx]
-                    #     scaled_target = x[:, target_scale_ratio-1::target_scale_ratio, :]
-                    #     encoded_target = encoder(scaled_target)
-                    #     for source_scale_idx in range(len(encoded_source)):
-                    #         ratio_pair = [source_scale_idx + 1, scaleidx + 1]
-                    #         if ratio_pair in self.except_ratios:
-                    #             continue
-                    #         # print(ratio_pair, target_scale_ratio)
-                    #         if encoded_target.size() != encoded_source[source_scale_idx].size():
-                    #             expanded_encoded_target = encoded_target.repeat(encoded_source[source_scale_idx].size(0), 1)
-                    #         relation_scores = relationmodel(encoded_source[source_scale_idx], expanded_encoded_target)
-                    #         all_scores.append(relation_scores)
-                    #         all_ruls.append(ruls[source_scale_idx] * target_scale_ratio)
-                    #         del expanded_encoded_target
-                    #         encoded_source[source_scale_idx].cpu()
-                    all_scores = torch.hstack(all_scores)
-                    all_ruls = torch.hstack(all_ruls).to(device)
-
-                    maxscores, maxidx = torch.topk(all_scores, 1000)  # 1000
-                    selected_ruls = all_ruls[maxidx]
-                    # maxscores = all_scores
-                    # selected_ruls = all_ruls
-
-                    maxscores = F.softmax(maxscores, dim=0)
-                    # maxscores = maxscores / torch.sum(maxscores)
-                    maxscores = maxscores.unsqueeze(dim=0)
-
-                    selected_ruls = selected_ruls.reshape(-1, 1)
-                    predicted_rul = torch.mm(maxscores, selected_ruls)
-                    if step % 100 == 0:
-                        print(predicted_rul, y[0][0])
-                    y_true.append(y[0][0] * 3000)
-                    y_pred.append(predicted_rul[0][0].item() * 3000)
-                    # import pdb;pdb.set_trace()
-
-                error = 0
-                for i in range(len(y_true)):
-                    error += abs(y_true[i] - y_pred[i]) / y_true[i]
-                print('error:', error / len(y_true))
-
-                y_true = torch.Tensor(y_true)
-                y_pred = torch.Tensor(y_pred)
-                # import matplotlib.pyplot as plt
-                # plt.plot([i for i in range(len(y_true))], y_true)
-                # plt.plot([i for i in range(len(y_true))], y_pred)
-                # plt.show()
-                epoch_loss = torch.nn.L1Loss()(y_true, y_pred)
-                print(epoch_loss)
-                valid_loss.append(epoch_loss)
-
-                # if self.n_epochs > 10:
-                if epoch % 1 == 0:
-                    print('Epoch number : ', epoch)
-                    print(f'-- "train" loss {train_loss[-1]:.4}',
-                          f'-- "valid" loss {epoch_loss:.4}')
-                    # torch.save(relationmodel.state_dict(), 'VITrelationmodel.pth')
-                    name = save_path + '/LSTM_relu_b_32_' + str(
-                        int(epoch_loss.item())) + '.pth'
-                    torch.save(encoder.state_dict(), name)
-                else:
-                    print(f'-- "train" loss {train_loss[-1]:.4}',
-                          f'-- "valid" loss {epoch_loss:.4}')
+            if False:
+                encoder.eval()
+                relationmodel.eval()
+                y_true, y_pred = [], []
+                with torch.no_grad():
+                
+                    encoded_retrieval_set = self.generate_encoded_databasev3(encoder)
+                    # encoded_source, ruls = self.generate_encoded_databasev3(
+                    #     encoder)
+    
+                    for step, (x, y) in enumerate(valid_loader):
+                        assert y.size(0) == 1
+                        x = x.to(device)
+                        all_scores, all_ruls = [], []
+                        encoded_target = encoder(x)
+                        print(x.shape,encoded_target.shape)
+    
+                        for i in range(x.shape[0]):
+                            key = int(y[i][1] - y[i][0])
+                            encoded_source = encoded_retrieval_set[key][0]
+                            encoded_ruls = torch.Tensor(encoded_retrieval_set[key][1])
+                            if encoded_target.size(
+                            ) != encoded_source.size():
+                                expanded_encoded_target = encoded_target.repeat(
+                                    encoded_source.size(0),
+                                    1)
+                            relation_scores = relationmodel(
+                                encoded_source,
+                                expanded_encoded_target)
+                            all_scores.append(relation_scores)
+                            all_ruls.append(encoded_ruls)
+                            del expanded_encoded_target
+                            encoded_source.cpu()
+    
+                        # for scaleidx in range(len(self.scale_ratios)):
+                        #     target_scale_ratio = self.scale_ratios[scaleidx]
+                        #     scaled_target = x[:, target_scale_ratio-1::target_scale_ratio, :]
+                        #     encoded_target = encoder(scaled_target)
+                        #     for source_scale_idx in range(len(encoded_source)):
+                        #         ratio_pair = [source_scale_idx + 1, scaleidx + 1]
+                        #         if ratio_pair in self.except_ratios:
+                        #             continue
+                        #         # print(ratio_pair, target_scale_ratio)
+                        #         if encoded_target.size() != encoded_source[source_scale_idx].size():
+                        #             expanded_encoded_target = encoded_target.repeat(encoded_source[source_scale_idx].size(0), 1)
+                        #         relation_scores = relationmodel(encoded_source[source_scale_idx], expanded_encoded_target)
+                        #         all_scores.append(relation_scores)
+                        #         all_ruls.append(ruls[source_scale_idx] * target_scale_ratio)
+                        #         del expanded_encoded_target
+                        #         encoded_source[source_scale_idx].cpu()
+    
+                        all_scores = torch.hstack(all_scores)
+                        all_ruls = torch.hstack(all_ruls).to(device)
+                        print(all_scores,all_ruls)
+    
+                        maxscores, maxidx = torch.topk(all_scores, 1000)  # 1000
+                        selected_ruls = all_ruls[maxidx]
+                        # maxscores = all_scores
+                        # selected_ruls = all_ruls
+    
+                        maxscores = F.softmax(maxscores, dim=0)
+                        # maxscores = maxscores / torch.sum(maxscores)
+                        maxscores = maxscores.unsqueeze(dim=0)
+    
+                        selected_ruls = selected_ruls.reshape(-1, 1)
+                        predicted_rul = torch.mm(maxscores, selected_ruls)
+                        if step % 100 == 0:
+                            print(predicted_rul, y[0][0])
+                        y_true.append(y[0][0] * self.rul_factor)
+                        y_pred.append(predicted_rul[0][0].item() * self.rul_factor)
+                        # import pdb;pdb.set_trace()
+    
+                    error = 0
+                    for i in range(len(y_true)):
+                        error += abs(y_true[i] - y_pred[i]) / y_true[i]
+                    print('error:', error / len(y_true))
+    
+                    y_true = torch.Tensor(y_true)
+                    y_pred = torch.Tensor(y_pred)
+                    # import matplotlib.pyplot as plt
+                    # plt.plot([i for i in range(len(y_true))], y_true)
+                    # plt.plot([i for i in range(len(y_true))], y_pred)
+                    # plt.show()
+                    epoch_loss = torch.nn.L1Loss()(y_true, y_pred)
+                    print(epoch_loss)
+                    valid_loss.append(epoch_loss)
+    
+                    # if self.n_epochs > 10:
+                    if epoch % 1 == 0:
+                        print('Epoch number : ', epoch)
+                        print(f'-- "train" loss {train_loss[-1]:.4}',
+                              f'-- "valid" loss {epoch_loss:.4}')
+                        # torch.save(relationmodel.state_dict(), 'VITrelationmodel.pth')
+                        name = save_path + '/LSTM_relu_b_32_' + str(
+                            int(epoch_loss.item())) + '.pth'
+                        torch.save(encoder.state_dict(), name)
+                    else:
+                        print(f'-- "train" loss {train_loss[-1]:.4}',
+                              f'-- "valid" loss {epoch_loss:.4}')
 
     def test(self, train_loader, valid_loader, encoder, relationmodel,
              save_path):

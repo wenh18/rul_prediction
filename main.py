@@ -312,7 +312,7 @@ if __name__ == '__main__':
 
     valid_align_sampler = utils.SeqSampler(validset)
     valid_batch_sampler = BatchSampler(valid_align_sampler,
-                                       batch_size=batch_size,
+                                       batch_size=args.valid_batch_size,
                                        drop_last=True)
     valid_loader = DataLoader(
         validset,
@@ -338,7 +338,7 @@ if __name__ == '__main__':
         '''
         tic = time.time()
         # seed_torch(0)
-        device = 'cpu'
+        device = 'cuda'
         # model = CRNN(100, 4, 64, 64)
         # encoder, relationmodel = make_model(h=4,N=1,d_in=14,d_model=64,d_ff=64,d_embedding=32,dropout=0.5)
         encoded_feature_dim = 128
