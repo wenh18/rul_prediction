@@ -550,69 +550,6 @@ class Trainer():
         neighbor_ruls = torch.split(neighbor_ruls, source_batchsize)
         return feas, neighbor_feas, ruls, neighbor_ruls
 
-    def randomly_sample_partsv5(self, batteryidx, source_batchsize=200):
-        # parts_num_per_battery = int(self.parts_num_from_each_len / self.train_retrieval_size)
-        feas, neighbor_feas, ruls, neighbor_ruls = [], [], [], []
-        '''sample the battery sequence ids'''
-        candidate_battery_ids = []
-        for k in self.retrieval_set.keys():
-            if self.retrieval_set[k][-1] != batteryidx:
-                pass
-        return
-        for i in range(len(self.retrieval_set[k])):
-            if i != batteryidx:
-                candidate_battery_ids.append(i)
-        sampled_battery_ids = np.random.choice(candidate_battery_ids,
-                                               self.train_retrieval_size,
-                                               replace=False)
-
-        total_candidate_num = np.sum(
-            [self.retrieval_feas[i].shape[0] for i in sampled_battery_ids])
-        for candidate_battery_idx in sampled_battery_ids:
-            sample_num = int(
-                self.retrieval_feas[candidate_battery_idx].shape[0] /
-                total_candidate_num * self.parts_num_from_each_len)
-            if sample_num < self.retrieval_feas[candidate_battery_idx].shape[0]:
-                choices = np.random.choice(
-                    self.retrieval_feas[candidate_battery_idx].shape[0],
-                    sample_num,
-                    replace=False)
-                nei_choices = [
-                    x - 1 if x +
-                    1 >= self.retrieval_feas[candidate_battery_idx].shape[0]
-                    else x + 1 for x in choices
-                ]
-                feas.append(
-                    self.retrieval_feas[candidate_battery_idx][choices, :, :])
-                neighbor_feas.append(self.retrieval_feas[candidate_battery_idx]
-                                     [nei_choices, :, :])
-                ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][choices])
-                neighbor_ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][nei_choices])
-            else:
-                nei_choices = [
-                    x + 1 for x in range(
-                        self.retrieval_feas[candidate_battery_idx].shape[0])
-                ]
-                nei_choices[-1] -= 2
-                feas.append(self.retrieval_feas[candidate_battery_idx])
-                neighbor_feas.append(self.retrieval_feas[candidate_battery_idx]
-                                     [nei_choices, :, :])
-                ruls.append(self.retrieval_ruls[candidate_battery_idx])
-                neighbor_ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][nei_choices])
-        feas = torch.Tensor(np.vstack(feas))
-        neighbor_feas = torch.Tensor(np.vstack(neighbor_feas))
-        ruls = torch.Tensor(np.hstack(ruls))
-        neighbor_ruls = torch.Tensor(np.hstack(neighbor_ruls))
-        # batchnum = math.ceil(feas.shape[0] / source_batchsize)
-        feas = torch.split(feas, source_batchsize)
-        neighbor_feas = torch.split(neighbor_feas, source_batchsize)
-        ruls = torch.split(ruls, source_batchsize)
-        neighbor_ruls = torch.split(neighbor_ruls, source_batchsize)
-        return feas, neighbor_feas, ruls, neighbor_ruls
-
     def generate_encoded_database(self,
                                   encoder,
                                   stride=2,
@@ -771,8 +708,6 @@ class Trainer():
                 loss = 0
                 tail_point = int(y[0][1] - y[0][0])
 
-                # if step > 100:
-                #     break
 
                 if tail_point not in self.retrieval_set.keys():
                     print(f"No key {tail_point}")
@@ -832,32 +767,33 @@ class Trainer():
                     })
 
             print('started to evaluate')
-            if False:
+            if True:
                 encoder.eval()
                 relationmodel.eval()
                 y_true, y_pred = [], []
                 with torch.no_grad():
-                
+
                     encoded_retrieval_set = self.generate_encoded_databasev3(encoder)
                     # encoded_source, ruls = self.generate_encoded_databasev3(
                     #     encoder)
-    
+
                     for step, (x, y) in enumerate(valid_loader):
                         assert y.size(0) == 1
                         x = x.to(device)
                         all_scores, all_ruls = [], []
                         encoded_target = encoder(x)
-                        print(x.shape,encoded_target.shape)
-    
-                        for i in range(x.shape[0]):
-                            key = int(y[i][1] - y[i][0])
-                            encoded_source = encoded_retrieval_set[key][0]
-                            encoded_ruls = torch.Tensor(encoded_retrieval_set[key][1])
+
+                        for k,v in encoded_retrieval_set.items():
+                            encoded_source = v[0]
+                            encoded_ruls = torch.Tensor(
+                                v[1])
                             if encoded_target.size(
                             ) != encoded_source.size():
                                 expanded_encoded_target = encoded_target.repeat(
                                     encoded_source.size(0),
                                     1)
+                            else:
+                                expanded_encoded_target = encoded_target
                             relation_scores = relationmodel(
                                 encoded_source,
                                 expanded_encoded_target)
@@ -865,50 +801,33 @@ class Trainer():
                             all_ruls.append(encoded_ruls)
                             del expanded_encoded_target
                             encoded_source.cpu()
-    
-                        # for scaleidx in range(len(self.scale_ratios)):
-                        #     target_scale_ratio = self.scale_ratios[scaleidx]
-                        #     scaled_target = x[:, target_scale_ratio-1::target_scale_ratio, :]
-                        #     encoded_target = encoder(scaled_target)
-                        #     for source_scale_idx in range(len(encoded_source)):
-                        #         ratio_pair = [source_scale_idx + 1, scaleidx + 1]
-                        #         if ratio_pair in self.except_ratios:
-                        #             continue
-                        #         # print(ratio_pair, target_scale_ratio)
-                        #         if encoded_target.size() != encoded_source[source_scale_idx].size():
-                        #             expanded_encoded_target = encoded_target.repeat(encoded_source[source_scale_idx].size(0), 1)
-                        #         relation_scores = relationmodel(encoded_source[source_scale_idx], expanded_encoded_target)
-                        #         all_scores.append(relation_scores)
-                        #         all_ruls.append(ruls[source_scale_idx] * target_scale_ratio)
-                        #         del expanded_encoded_target
-                        #         encoded_source[source_scale_idx].cpu()
-    
+
                         all_scores = torch.hstack(all_scores)
                         all_ruls = torch.hstack(all_ruls).to(device)
-                        print(all_scores,all_ruls)
-    
+
                         maxscores, maxidx = torch.topk(all_scores, 1000)  # 1000
                         selected_ruls = all_ruls[maxidx]
                         # maxscores = all_scores
                         # selected_ruls = all_ruls
-    
+
                         maxscores = F.softmax(maxscores, dim=0)
                         # maxscores = maxscores / torch.sum(maxscores)
                         maxscores = maxscores.unsqueeze(dim=0)
-    
+
                         selected_ruls = selected_ruls.reshape(-1, 1)
                         predicted_rul = torch.mm(maxscores, selected_ruls)
                         if step % 100 == 0:
+                        # if True:
                             print(predicted_rul, y[0][0])
-                        y_true.append(y[0][0] * self.rul_factor)
-                        y_pred.append(predicted_rul[0][0].item() * self.rul_factor)
+                        y_true.append(y[0][0])
+                        y_pred.append(predicted_rul[0][0].item())
                         # import pdb;pdb.set_trace()
-    
+
                     error = 0
                     for i in range(len(y_true)):
                         error += abs(y_true[i] - y_pred[i]) / y_true[i]
                     print('error:', error / len(y_true))
-    
+
                     y_true = torch.Tensor(y_true)
                     y_pred = torch.Tensor(y_pred)
                     # import matplotlib.pyplot as plt
@@ -918,7 +837,7 @@ class Trainer():
                     epoch_loss = torch.nn.L1Loss()(y_true, y_pred)
                     print(epoch_loss)
                     valid_loss.append(epoch_loss)
-    
+
                     # if self.n_epochs > 10:
                     if epoch % 1 == 0:
                         print('Epoch number : ', epoch)
