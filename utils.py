@@ -140,9 +140,10 @@ def contrastive_loss(ruls1, ruls2, tao):
 
 class SeqSampler(Sampler):
 
-    def __init__(self, data_source: TensorDataset) -> None:
+    def __init__(self, data_source: TensorDataset, type) -> None:
         super().__init__(data_source)
         self.data = data_source
+        self.type = type
 
     def __iter__(self):
         '''tensors:[features,label]
@@ -160,12 +161,27 @@ class SeqSampler(Sampler):
             else:
                 indices_map[pos] = [i]
         indices = []
-        for _, v in indices_map.items():
-            indices += v
+        keys = indices_map.keys()
+        if self.type == 'train':
+            nei_keys = [
+                indices_map[keys[i + 1]]
+                for i in range(len(indices_map.keys()) - 1)
+            ]
+            nei_keys.append(indices_map[keys[-2]])
+            assert len(keys) == len(nei_keys)
+            for i in range(len(keys)):
+                indices += indices_map[keys[i]]
+                indices += indices_map[nei_keys[i]]
+        else:
+            for i in range(len(keys)):
+                indices += indices_map[keys[i]]
         return iter(indices)
 
     def __len__(self):
-        return self.data.tensors[0].shape[0]
+        if self.type == 'train':
+            return self.data.tensors[0].shape[0] * 2
+        else:
+            return self.data.tensors[0].shape[0]
 
 
 class Trainer():
@@ -183,6 +199,7 @@ class Trainer():
                  except_ratios=None,
                  retrieval_fragments_num=10,
                  data_aug_scale_ratios=None,
+                 batch_size=32,
                  rulfactor=3000):
         """
         Args:
@@ -199,6 +216,7 @@ class Trainer():
         self.n_epochs = n_epochs
         self.device = device
         self.rul_factor = rulfactor
+        self.batch_size = batch_size
         # self.patience = patience
         # self.model_name = model_name
         # self.lamda = lamda
@@ -270,285 +288,6 @@ class Trainer():
                     retrieval_set[seqidx][2], retrieval_set[seqidx][3]
                 ])
         return new_retrieval_set
-
-    def get_retrieval_fragments(self, target_part_len):
-        feature_num = self.retrieval_set[0][0].shape[1]
-        print("FEAT: ", len(self.retrieval_set), len(self.retrieval_set[0]),
-              self.retrieval_set[0][0].shape)
-        assert 0 == 1
-        # feas, ruls = [], []
-        all_feas, rul_lbls = [[]], [[]]
-        batteryid = 0
-        for selected_full_seq_id in range(len(self.retrieval_set)):
-            if self.retrieval_set[selected_full_seq_id][3] != batteryid:
-                all_feas.append([])
-                rul_lbls.append([])
-                batteryid = self.retrieval_set[selected_full_seq_id][3]
-            # print('scaled full sequence shape: ',
-            #       self.retrieval_set[selected_full_seq_id][0].shape)
-            if self.retrieval_set[selected_full_seq_id][0].shape[
-                    0] >= target_part_len:
-                sliced_parts = np.lib.stride_tricks.sliding_window_view(
-                    self.retrieval_set[selected_full_seq_id][0],
-                    (target_part_len, feature_num))
-
-                sliced_parts_ruls = self.retrieval_set[selected_full_seq_id][
-                    1][target_part_len - 1:]
-                sliced_parts = sliced_parts.squeeze(1)
-                # rul_factor = 1 / part_len_ratio
-                sliced_parts_ruls = np.array(sliced_parts_ruls).astype(float)
-
-                if sliced_parts.shape[0] >= self.retrieval_fragments_num:
-                    sliced_parts = sliced_parts[:self.
-                                                retrieval_fragments_num, :, :]
-                    sliced_parts_ruls = sliced_parts_ruls[:self.
-                                                          retrieval_fragments_num]
-            else:
-                sliced_parts = np.array([])
-                sliced_parts_ruls = np.array([])
-            # print('sequence number and rul number from sequence {}: {} , {}'.
-            #       format(sliced_parts.shape, sliced_parts_ruls.shape,
-            #              selected_full_seq_id))
-            all_feas[-1].append(sliced_parts)
-            rul_lbls[-1].append(sliced_parts_ruls)
-        for unscaled_fea_idx in range(len(all_feas)):
-            # print(unscaled_fea_idx)
-            tmp_feas = np.vstack(all_feas[unscaled_fea_idx])
-            tmp_ruls = np.hstack(rul_lbls[unscaled_fea_idx])
-            all_feas[unscaled_fea_idx] = tmp_feas
-            rul_lbls[unscaled_fea_idx] = tmp_ruls
-        return all_feas, rul_lbls
-
-    def get_retrieval_parts(self, selected_full_seqs, target_part_len):
-        '''
-        selected_seqs: retrieval degradation seqs except the training part
-        part_lens: [0.33*target_len + i * 0.1 for i in range(26)]
-
-        return:
-        feas: [parts_num_from_each_len*part_lens[i]*feature_num for i in range(len(part_lens[i]))]
-        ruls: parts_num_from_each_len X len(part_lens)
-        '''
-        feature_num = selected_full_seqs[0][0].shape[1]
-        feas, ruls = [], []
-        for scale_ratio in self.scale_ratios:
-            # part_len = int(target_part_len * part_len_ratio)
-            all_feas, rul_lbls = [], []
-            for selected_full_seq_id in range(len(selected_full_seqs)):
-                # full_seq_len = round(rul_factor*selected_full_seqs[selected_full_seq_id][1][0])
-                cp_selected_full_seqs = copy.deepcopy(
-                    selected_full_seqs[selected_full_seq_id][0])
-
-                cp_selected_full_seqs = cp_selected_full_seqs[
-                    scale_ratio - 1::scale_ratio, :]
-                print('scaled full sequence shape: ',
-                      cp_selected_full_seqs.shape)
-                if cp_selected_full_seqs.shape[0] >= target_part_len:
-                    cp_selected_full_seqs_ruls = copy.deepcopy(
-                        selected_full_seqs[selected_full_seq_id][1])
-                    cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls[
-                        scale_ratio - 1::scale_ratio]
-                    cp_selected_full_seqs_ruls = cp_selected_full_seqs_ruls / scale_ratio
-                    sliced_parts = np.lib.stride_tricks.sliding_window_view(
-                        cp_selected_full_seqs, (target_part_len, feature_num))
-
-                    sliced_parts_ruls = cp_selected_full_seqs_ruls[
-                        target_part_len - 1:]
-                    sliced_parts = sliced_parts.squeeze(1)
-                    # rul_factor = 1 / part_len_ratio
-                    sliced_parts_ruls = np.array(sliced_parts_ruls).astype(
-                        float)
-
-                    if sliced_parts.shape[0] >= self.retrieval_fragments_num:
-                        sliced_parts = sliced_parts[:self.
-                                                    retrieval_fragments_num, :, :]
-                        sliced_parts_ruls = sliced_parts_ruls[:self.
-                                                              retrieval_fragments_num]
-                else:
-                    sliced_parts = np.array([])
-                    sliced_parts_ruls = np.array([])
-                print(
-                    'sequence number and rul number for scale ratio{} for sequence{}: {} , {}'
-                    .format(scale_ratio, selected_full_seq_id,
-                            sliced_parts.shape, sliced_parts_ruls.shape))
-                all_feas.append(sliced_parts)
-                rul_lbls.append(sliced_parts_ruls)
-            # all_feas = np.vstack(all_feas)
-
-            feas.append(all_feas)
-            ruls.append(rul_lbls)
-        # import pdb;pdb.set_trace()
-        return feas, ruls
-
-    def randomly_sample_parts(self, batteryidx):
-        '''this func takes too much time'''
-        feas, ruls = [], []
-        for zoom_ratio_idx in range(len(self.retrieval_feas)):
-            tmp_feas_pool, tmp_rul_pool = [], []
-            for retrieval_battery_idx in range(
-                    len(self.retrieval_feas[zoom_ratio_idx])):
-                # filter out the battery which the target sequence belongs to
-                if retrieval_battery_idx == batteryidx:
-                    continue
-                tmp_feas_pool.append(
-                    self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx])
-                tmp_rul_pool.append(
-                    self.retrieval_ruls[zoom_ratio_idx][retrieval_battery_idx])
-            tmp_feas_pool = np.vstack(tmp_feas_pool)
-            tmp_rul_pool = np.hstack(tmp_rul_pool)
-            choices = np.random.choice(tmp_feas_pool.shape[0],
-                                       self.parts_num_from_each_len,
-                                       replace=False)
-            feas.append(tmp_feas_pool[choices, :, :])
-            ruls.append(tmp_rul_pool[choices])
-        return feas, ruls
-
-    def randomly_sample_partsv2(self, batteryidx):
-        feas, ruls = [], []
-        # if training:
-        parts_num_per_battery = int(self.parts_num_from_each_len /
-                                    self.train_retrieval_size)
-        candidate_battery_ids = []
-        for i in range(len(self.retrieval_feas[0])):
-            if i != batteryidx:
-                candidate_battery_ids.append(i)
-        sampled_battery_ids = np.random.choice(candidate_battery_ids,
-                                               self.train_retrieval_size,
-                                               replace=False)
-        # else:
-        #     # parts_num_per_battery = int(self.parts_num_from_each_len / (len(self.retrieval_feas[0]) - 1))
-        #     sampled_battery_ids = [i for i in range(len(self.retrieval_feas[0]))]
-        for zoom_ratio_idx in range(len(self.retrieval_feas)):
-            tmp_feas_pool, tmp_rul_pool = [], []
-            for retrieval_battery_idx in sampled_battery_ids:
-                if parts_num_per_battery < self.retrieval_feas[zoom_ratio_idx][
-                        retrieval_battery_idx].shape[0]:
-                    choices = np.random.choice(
-                        self.retrieval_feas[zoom_ratio_idx]
-                        [retrieval_battery_idx].shape[0],
-                        parts_num_per_battery,
-                        replace=False)
-                    tmp_feas_pool.append(
-                        self.retrieval_feas[zoom_ratio_idx]
-                        [retrieval_battery_idx][choices, :, :])
-                    tmp_rul_pool.append(self.retrieval_ruls[zoom_ratio_idx]
-                                        [retrieval_battery_idx][choices])
-                elif self.retrieval_feas[zoom_ratio_idx][
-                        retrieval_battery_idx].shape[0] > 0:
-                    tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx]
-                                         [retrieval_battery_idx])
-                    tmp_rul_pool.append(self.retrieval_ruls[zoom_ratio_idx]
-                                        [retrieval_battery_idx])
-                # else:
-                #     tmp_feas_pool.append(self.retrieval_feas[zoom_ratio_idx][retrieval_battery_idx])
-                #     tmp_rul_pool.append(self.retreival_ruls[zoom_ratio_idx][retrieval_battery_idx])
-            tmp_feas_pool = np.vstack(tmp_feas_pool)
-            tmp_rul_pool = np.hstack(tmp_rul_pool)
-
-            feas.append(tmp_feas_pool)
-            ruls.append(tmp_rul_pool)
-        return feas, ruls
-
-    def randomly_sample_partsv3(self, batteryidx, source_batchsize=200):
-        # parts_num_per_battery = int(self.parts_num_from_each_len / self.train_retrieval_size)
-        feas, ruls = [], []
-        '''sample the battery sequence ids'''
-        candidate_battery_ids = []
-        for i in range(len(self.retrieval_feas)):
-            if i != batteryidx:
-                candidate_battery_ids.append(i)
-        sampled_battery_ids = np.random.choice(candidate_battery_ids,
-                                               self.train_retrieval_size,
-                                               replace=False)
-
-        total_candidate_num = np.sum(
-            [self.retrieval_feas[i].shape[0] for i in sampled_battery_ids])
-        for candidate_battery_idx in sampled_battery_ids:
-            sample_num = int(
-                self.retrieval_feas[candidate_battery_idx].shape[0] /
-                total_candidate_num * self.parts_num_from_each_len)
-            if sample_num < self.retrieval_feas[candidate_battery_idx].shape[0]:
-                choices = np.random.choice(
-                    self.retrieval_feas[candidate_battery_idx].shape[0],
-                    sample_num,
-                    replace=False)
-                # print(
-                #     self.retrieval_feas[candidate_battery_idx][choices, :, :])
-                assert 0 == 1
-                feas.append(
-                    self.retrieval_feas[candidate_battery_idx][choices, :, :])
-                # neighbor_feas.append(self.retrieval_feas[candidate_battery_idx][])
-                ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][choices])
-            else:
-                feas.append(self.retrieval_feas[candidate_battery_idx])
-                ruls.append(self.retrieval_ruls[candidate_battery_idx])
-        feas = torch.Tensor(np.vstack(feas))
-        ruls = torch.Tensor(np.hstack(ruls))
-        # batchnum = math.ceil(feas.shape[0] / source_batchsize)
-        feas = torch.split(feas, source_batchsize)
-        ruls = torch.split(ruls, source_batchsize)
-        return feas, ruls
-
-    def randomly_sample_partsv4_with_aug(self,
-                                         batteryidx,
-                                         source_batchsize=200):
-        # parts_num_per_battery = int(self.parts_num_from_each_len / self.train_retrieval_size)
-        feas, neighbor_feas, ruls, neighbor_ruls = [], [], [], []
-        '''sample the battery sequence ids'''
-        candidate_battery_ids = []
-        for i in range(len(self.retrieval_feas)):
-            if i != batteryidx:
-                candidate_battery_ids.append(i)
-        sampled_battery_ids = np.random.choice(candidate_battery_ids,
-                                               self.train_retrieval_size,
-                                               replace=False)
-
-        total_candidate_num = np.sum(
-            [self.retrieval_feas[i].shape[0] for i in sampled_battery_ids])
-        for candidate_battery_idx in sampled_battery_ids:
-            sample_num = int(
-                self.retrieval_feas[candidate_battery_idx].shape[0] /
-                total_candidate_num * self.parts_num_from_each_len)
-            if sample_num < self.retrieval_feas[candidate_battery_idx].shape[0]:
-                choices = np.random.choice(
-                    self.retrieval_feas[candidate_battery_idx].shape[0],
-                    sample_num,
-                    replace=False)
-                nei_choices = [
-                    x - 1 if x +
-                    1 >= self.retrieval_feas[candidate_battery_idx].shape[0]
-                    else x + 1 for x in choices
-                ]
-                feas.append(
-                    self.retrieval_feas[candidate_battery_idx][choices, :, :])
-                neighbor_feas.append(self.retrieval_feas[candidate_battery_idx]
-                                     [nei_choices, :, :])
-                ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][choices])
-                neighbor_ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][nei_choices])
-            else:
-                nei_choices = [
-                    x + 1 for x in range(
-                        self.retrieval_feas[candidate_battery_idx].shape[0])
-                ]
-                nei_choices[-1] -= 2
-                feas.append(self.retrieval_feas[candidate_battery_idx])
-                neighbor_feas.append(self.retrieval_feas[candidate_battery_idx]
-                                     [nei_choices, :, :])
-                ruls.append(self.retrieval_ruls[candidate_battery_idx])
-                neighbor_ruls.append(
-                    self.retrieval_ruls[candidate_battery_idx][nei_choices])
-        feas = torch.Tensor(np.vstack(feas))
-        neighbor_feas = torch.Tensor(np.vstack(neighbor_feas))
-        ruls = torch.Tensor(np.hstack(ruls))
-        neighbor_ruls = torch.Tensor(np.hstack(neighbor_ruls))
-        # batchnum = math.ceil(feas.shape[0] / source_batchsize)
-        feas = torch.split(feas, source_batchsize)
-        neighbor_feas = torch.split(neighbor_feas, source_batchsize)
-        ruls = torch.split(ruls, source_batchsize)
-        neighbor_ruls = torch.split(neighbor_ruls, source_batchsize)
-        return feas, neighbor_feas, ruls, neighbor_ruls
 
     def generate_encoded_database(self,
                                   encoder,
@@ -655,7 +394,7 @@ class Trainer():
             rul = self.retrieval_set[k][1]
             seq_len = self.retrieval_set[k][2]
             battery_id = self.retrieval_set[k][3]
-            new_retrieval_set[k] = [encoded_tmp_feas,rul,seq_len,battery_id]
+            new_retrieval_set[k] = [encoded_tmp_feas, rul, seq_len, battery_id]
         return new_retrieval_set
 
     def select_source_seqs(self, battery_seq, batteryidx):
@@ -704,10 +443,15 @@ class Trainer():
             train_losses = []
             for step, (x, y) in enumerate(train_loader):
                 x = x.to(device)
-                encoded_target = encoder(x)
-                loss = 0
-                tail_point = int(y[0][1] - y[0][0])
+                x_source = x[:self.batch_size]
+                x_nei = x[self.batch_size:]
+                assert x_source.shape == x_nei.shape
+                encoded_target = encoder(x_source)
+                encoded_neighbor = encoder(x_nei)
 
+                loss = contrastive_loss(encoded_target, encoded_neighbor, 0.5)
+                print("c_l", loss)
+                tail_point = int(y[0][1] - y[0][0])
 
                 if tail_point not in self.retrieval_set.keys():
                     print(f"No key {tail_point}")
@@ -739,7 +483,7 @@ class Trainer():
 
                     all_ruls = torch.Tensor(ruls).cuda()
                     all_ruls = all_ruls.reshape(-1, 1)
-                    
+
                     all_ruls /= self.rul_factor
 
                     # all_scores = all_scores / torch.sum(all_scores)
@@ -748,8 +492,10 @@ class Trainer():
                     # c_l = contrastive_loss(encoded_source, encoded_nei, 0.5)
                     # print("contrastive loss: ", c_l)
                     # loss += c_l
-                    loss += loss_fn(predicted_rul, y[i][0].cuda() / self.rul_factor)
+                    loss += loss_fn(predicted_rul,
+                                    y[i][0].cuda() / self.rul_factor)
 
+                print("tot_loss", loss)
                 loss /= y.size(0)
                 encoder_optimizer.zero_grad()
                 relationmodel_optimizer.zero_grad()
@@ -773,7 +519,8 @@ class Trainer():
                 y_true, y_pred = [], []
                 with torch.no_grad():
 
-                    encoded_retrieval_set = self.generate_encoded_databasev3(encoder)
+                    encoded_retrieval_set = self.generate_encoded_databasev3(
+                        encoder)
                     # encoded_source, ruls = self.generate_encoded_databasev3(
                     #     encoder)
 
@@ -783,20 +530,16 @@ class Trainer():
                         all_scores, all_ruls = [], []
                         encoded_target = encoder(x)
 
-                        for k,v in encoded_retrieval_set.items():
+                        for k, v in encoded_retrieval_set.items():
                             encoded_source = v[0]
-                            encoded_ruls = torch.Tensor(
-                                v[1])
-                            if encoded_target.size(
-                            ) != encoded_source.size():
+                            encoded_ruls = torch.Tensor(v[1])
+                            if encoded_target.size() != encoded_source.size():
                                 expanded_encoded_target = encoded_target.repeat(
-                                    encoded_source.size(0),
-                                    1)
+                                    encoded_source.size(0), 1)
                             else:
                                 expanded_encoded_target = encoded_target
                             relation_scores = relationmodel(
-                                encoded_source,
-                                expanded_encoded_target)
+                                encoded_source, expanded_encoded_target)
                             all_scores.append(relation_scores)
                             all_ruls.append(encoded_ruls)
                             del expanded_encoded_target
@@ -805,7 +548,8 @@ class Trainer():
                         all_scores = torch.hstack(all_scores)
                         all_ruls = torch.hstack(all_ruls).to(device)
 
-                        maxscores, maxidx = torch.topk(all_scores, 1000)  # 1000
+                        maxscores, maxidx = torch.topk(all_scores,
+                                                       1000)  # 1000
                         selected_ruls = all_ruls[maxidx]
                         # maxscores = all_scores
                         # selected_ruls = all_ruls
@@ -817,7 +561,7 @@ class Trainer():
                         selected_ruls = selected_ruls.reshape(-1, 1)
                         predicted_rul = torch.mm(maxscores, selected_ruls)
                         if step % 100 == 0:
-                        # if True:
+                            # if True:
                             print(predicted_rul, y[0][0])
                         y_true.append(y[0][0])
                         y_pred.append(predicted_rul[0][0].item())

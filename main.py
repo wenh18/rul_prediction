@@ -301,16 +301,17 @@ if __name__ == '__main__':
     trainset = TensorDataset(torch.Tensor(train_fea), torch.Tensor(train_lbl))
     validset = TensorDataset(torch.Tensor(valid_fea), torch.Tensor(valid_lbl))
 
-    train_align_sampler = utils.SeqSampler(trainset)
-    train_batch_sampler = BatchSampler(train_align_sampler,
-                                       batch_size=batch_size,
-                                       drop_last=True)
+    train_align_sampler = utils.SeqSampler(trainset, 'train')
+    train_batch_sampler = BatchSampler(
+        train_align_sampler,
+        batch_size=batch_size * 2,  # with contrastive loss
+        drop_last=True)
     train_loader = DataLoader(
         trainset,
         #   batch_size=args.batch_size,
         batch_sampler=train_batch_sampler)
 
-    valid_align_sampler = utils.SeqSampler(validset)
+    valid_align_sampler = utils.SeqSampler(validset, 'valid')
     valid_batch_sampler = BatchSampler(valid_align_sampler,
                                        batch_size=args.valid_batch_size,
                                        drop_last=True)
@@ -384,7 +385,8 @@ if __name__ == '__main__':
             parts_num_from_each_len=args.parts_num_per_ratio,
             scale_ratios=args.scale_ratios,
             except_ratios=args.except_ratios,
-            data_aug_scale_ratios=data_aug_scale_ratios)
+            data_aug_scale_ratios=data_aug_scale_ratios,
+            batch_size=args.batch_size)
         model, train_loss, valid_loss, total_loss = trainer.train(
             train_loader,
             valid_loader,
