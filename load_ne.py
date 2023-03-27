@@ -9,6 +9,7 @@ from scipy.optimize import leastsq
 from scipy.stats import pearsonr
 import pickle
 from dataloader import preprocessv3
+import utils
 
 
 def save_obj(obj, name):
@@ -65,10 +66,10 @@ def interp(x, y, num, ruls, rul_factor):
 
 def data_aug(feas, ruls, scale_ratios, rul_factor):
     augmented_feas, augmented_ruls = [], []
-    print(feas.shape)
     for scaleratio in scale_ratios:
         if int(scaleratio * feas.shape[0]) <= 100:
             continue
+
         augmented, rul = interp([i for i in range(feas.shape[0])], feas,
                                 int(scaleratio * feas.shape[0]), ruls,
                                 rul_factor)
@@ -194,7 +195,8 @@ def get_retrieval_seq(pkl_dir='ne_data/',
     return retrieval_set
 
 
-def get_retrieval_seq_v2(pkl_dir='ne_data/',
+def get_retrieval_seq_v2(scale_ratios,
+                         pkl_dir='ne_data/',
                          rul_factor=3000,
                          seriesnum=None,
                          seq_len=100,
@@ -213,26 +215,35 @@ def get_retrieval_seq_v2(pkl_dir='ne_data/',
         all_fea = np.load(pkl_dir + name + '.npy', allow_pickle=True)
         A_rul = np.load(pkl_dir + name + '_rul.npy',
                         allow_pickle=True).astype(float)
-        tot_seq_len = A_rul[0]
+        # print("origin", all_fea.shape, A_rul.shape)
+        aug_fea, aug_rul = data_aug(all_fea, A_rul, scale_ratios, 1)
+
+        # for i in range(len(aug_fea)):
+        #     print(aug_fea[i].shape, aug_rul[i].shape)
+
         # # remove rul_factor
         # A_rul /= rul_factor
         '''
         all_fea [seq,features]
         A_rul [seq,]
         '''
-        print(all_fea.shape, A_rul.shape)
-        for i in range(len(A_rul)):
-            start = i
-            tail = i + seq_len
-            if tail > len(A_rul):
-                break
-            if tail in retrieval_set.keys():
-                retrieval_set[tail - 1].append(
-                    [all_fea[start:tail], A_rul[i], tot_seq_len, batteryid])
-            else:
-                retrieval_set[tail - 1] = [[
-                    all_fea[start:tail], A_rul[i], tot_seq_len, batteryid
-                ]]
+        for id in range(len(aug_fea)):
+            all_fea = aug_fea[id]
+            A_rul = aug_rul[id]
+            tot_seq_len = A_rul[0]
+            for i in range(len(A_rul)):
+                start = i
+                tail = i + seq_len
+                if tail > len(A_rul):
+                    break
+                if tail in retrieval_set.keys():
+                    retrieval_set[tail - 1].append([
+                        all_fea[start:tail], A_rul[i], tot_seq_len, batteryid
+                    ])
+                else:
+                    retrieval_set[tail - 1] = [[
+                        all_fea[start:tail], A_rul[i], tot_seq_len, batteryid
+                    ]]
         batteryid += 1
 
     new_retrieval_set = {}
@@ -249,6 +260,7 @@ def get_retrieval_seq_v2(pkl_dir='ne_data/',
             np.array(all_seq_len),
             np.array(all_battery_id)
         ]
+    # print(retrieval_set.keys())
     return new_retrieval_set
 
 

@@ -115,26 +115,29 @@ def contrastive_loss(source, pos_sample, tao):
 
     def sim(tensor1, tensor2):
         if tensor1.shape != tensor2.shape:
-            tensor1 = tensor1.reshape(1,-1)
-            return torch.cosine_similarity(tensor1,tensor2)
+            tensor1 = tensor1.reshape(1, -1)
+            return torch.cosine_similarity(tensor1, tensor2)
         else:
-            return torch.cosine_similarity(tensor1,tensor2,dim=0)
+            return torch.cosine_similarity(tensor1, tensor2, dim=0)
 
-    def _l(i,type):
+    def _l(i, type):
         denominator = 0
         if type == 'src':
             denominator += torch.sum(torch.exp(sim(source[i], source) / tao))
-            denominator += torch.sum(torch.exp(sim(source[i], pos_sample) / tao))
+            denominator += torch.sum(
+                torch.exp(sim(source[i], pos_sample) / tao))
         else:
-            denominator += torch.sum(torch.exp(sim(pos_sample[i],pos_sample) / tao))
-            denominator += torch.sum(torch.exp(sim(pos_sample[i],source) / tao))
-        denominator -= math.exp(1/tao)
+            denominator += torch.sum(
+                torch.exp(sim(pos_sample[i], pos_sample) / tao))
+            denominator += torch.sum(
+                torch.exp(sim(pos_sample[i], source) / tao))
+        denominator -= math.exp(1 / tao)
         numerator = torch.exp(sim(pos_sample[i], source[i]) / tao)
         return -torch.log(numerator / denominator).item()
 
     L = 0
     for i in range(N):
-        L += _l(i,'src') + _l(i,'pos')
+        L += _l(i, 'src') + _l(i, 'pos')
     e = datetime.now()
     # print((e-s).microseconds / 10**6)
     return L / (2 * N)
@@ -165,10 +168,7 @@ class SeqSampler(Sampler):
         indices = []
         keys = list(indices_map.keys())
         if self.type == 'train':
-            nei_keys = [
-                keys[i + 1]
-                for i in range(len(keys) - 1)
-            ]
+            nei_keys = [keys[i + 1] for i in range(len(keys) - 1)]
             nei_keys.append(keys[-2])
             assert len(keys) == len(nei_keys)
             for i in range(len(keys)):
@@ -184,6 +184,31 @@ class SeqSampler(Sampler):
             return self.data.tensors[0].shape[0] * 2
         else:
             return self.data.tensors[0].shape[0]
+
+
+def scale_full_seqs_v2(retrieval_set, scale_ratios, rul_factor):
+    new_retrieval_set = []
+    # feature_num = retrieval_set[0][0].shape[1]
+
+    for k in retrieval_set.keys():
+        all_scale_seqs, all_scale_ruls = data_aug(feas=retrieval_set[k][0],
+                                                  ruls=retrieval_set[k][1],
+                                                  scale_ratios=scale_ratios,
+                                                  rul_factor=rul_factor)
+        print(len(all_scale_seqs))
+    assert 0 == 1
+    for seqidx in range(len(retrieval_set)):
+        all_scale_seqs, all_scale_ruls = data_aug(
+            feas=retrieval_set[seqidx][0],
+            ruls=retrieval_set[seqidx][1],
+            scale_ratios=scale_ratios,
+            rul_factor=rul_factor)
+        for idx in range(len(all_scale_seqs)):
+            new_retrieval_set.append([
+                all_scale_seqs[idx], all_scale_ruls[idx],
+                retrieval_set[seqidx][2], retrieval_set[seqidx][3]
+            ])
+    return new_retrieval_set
 
 
 class Trainer():
@@ -253,31 +278,6 @@ class Trainer():
     def scale_full_seqs(self, retrieval_set, scale_ratios, rul_factor):
         new_retrieval_set = []
         # feature_num = retrieval_set[0][0].shape[1]
-        for seqidx in range(len(retrieval_set)):
-            all_scale_seqs, all_scale_ruls = data_aug(
-                feas=retrieval_set[seqidx][0],
-                ruls=retrieval_set[seqidx][1],
-                scale_ratios=scale_ratios,
-                rul_factor=rul_factor)
-            for idx in range(len(all_scale_seqs)):
-                new_retrieval_set.append([
-                    all_scale_seqs[idx], all_scale_ruls[idx],
-                    retrieval_set[seqidx][2], retrieval_set[seqidx][3]
-                ])
-        return new_retrieval_set
-
-    def scale_full_seqs_v2(self, retrieval_set, scale_ratios, rul_factor):
-        new_retrieval_set = []
-        # feature_num = retrieval_set[0][0].shape[1]
-
-        for k in retrieval_set.keys():
-            all_scale_seqs, all_scale_ruls = data_aug(
-                feas=retrieval_set[k][0],
-                ruls=retrieval_set[k][1],
-                scale_ratios=scale_ratios,
-                rul_factor=rul_factor)
-            print(len(all_scale_seqs))
-        assert 0 == 1
         for seqidx in range(len(retrieval_set)):
             all_scale_seqs, all_scale_ruls = data_aug(
                 feas=retrieval_set[seqidx][0],
@@ -451,7 +451,8 @@ class Trainer():
                 encoded_target = encoder(x_source)
                 encoded_neighbor = encoder(x_nei)
 
-                loss = contrastive_loss(encoded_target, encoded_neighbor, 0.5) * 0.1
+                loss = contrastive_loss(encoded_target, encoded_neighbor,
+                                        0.5) * 0.1
                 tail_point = int(y[0][1] - y[0][0])
 
                 if tail_point not in self.retrieval_set.keys():

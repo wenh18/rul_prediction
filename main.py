@@ -292,9 +292,12 @@ if __name__ == '__main__':
             seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
-        retrieval_set = load_ne.get_retrieval_seq_v2(rul_factor=rul_factor,
-                                                     seq_len=seq_len,
-                                                     seriesnum=5000)
+        retrieval_set = load_ne.get_retrieval_seq_v2(
+            rul_factor=rul_factor,
+            seq_len=seq_len,
+            seriesnum=5000,
+            scale_ratios=data_aug_scale_ratios)
+
     print(train_fea.shape, train_lbl.shape, valid_fea.shape, valid_lbl.shape)
     # features: samples, sample_len, feature_num
     # label: rul, tot_seq_len, tot_seq_num
