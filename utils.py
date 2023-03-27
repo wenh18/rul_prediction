@@ -108,33 +108,35 @@ def cutoff_zeros(seq):
     return seq[:real_seq_len]
 
 
-def contrastive_loss(ruls1, ruls2, tao):
-    ruls = []
-    assert ruls1.shape[0] == ruls2.shape[0]
-    N = ruls1.shape[0]
-    for i in range(N):
-        ruls.append(ruls2[i])
-        ruls.append(ruls1[i])
+def contrastive_loss(source, pos_sample, tao):
+    s = datetime.now()
+    assert source.shape[0] == pos_sample.shape[0]
+    N = source.shape[0]
 
     def sim(tensor1, tensor2):
-        assert tensor1.shape[0] == tensor2.shape[0]
-        tensor1 = tensor1.squeeze(-1)
-        tensor2 = tensor2.squeeze(-1)
-        return torch.dot(tensor1,
-                         tensor2) / (math.sqrt(torch.dot(tensor1, tensor1)) *
-                                     math.sqrt(torch.dot(tensor2, tensor2)))
+        if tensor1.shape != tensor2.shape:
+            tensor1 = tensor1.reshape(1,-1)
+            return torch.cosine_similarity(tensor1,tensor2)
+        else:
+            return torch.cosine_similarity(tensor1,tensor2,dim=0)
 
-    def _l(i, j):
+    def _l(i,type):
         denominator = 0
-        for k in range(2 * N):
-            if i != k:
-                denominator += torch.exp(sim(ruls[i], ruls[k]) / tao)
-        numerator = torch.exp(sim(ruls[i], ruls[j]) / tao)
+        if type == 'src':
+            denominator += torch.sum(torch.exp(sim(source[i], source) / tao))
+            denominator += torch.sum(torch.exp(sim(source[i], pos_sample) / tao))
+        else:
+            denominator += torch.sum(torch.exp(sim(pos_sample[i],pos_sample) / tao))
+            denominator += torch.sum(torch.exp(sim(pos_sample[i],source) / tao))
+        denominator -= math.exp(1/tao)
+        numerator = torch.exp(sim(pos_sample[i], source[i]) / tao)
         return -torch.log(numerator / denominator).item()
 
     L = 0
     for i in range(N):
-        L += _l(2 * i, 2 * i + 1) + _l(2 * i + 1, 2 * i)
+        L += _l(i,'src') + _l(i,'pos')
+    e = datetime.now()
+    # print((e-s).microseconds / 10**6)
     return L / (2 * N)
 
 
@@ -161,13 +163,13 @@ class SeqSampler(Sampler):
             else:
                 indices_map[pos] = [i]
         indices = []
-        keys = indices_map.keys()
+        keys = list(indices_map.keys())
         if self.type == 'train':
             nei_keys = [
-                indices_map[keys[i + 1]]
-                for i in range(len(indices_map.keys()) - 1)
+                keys[i + 1]
+                for i in range(len(keys) - 1)
             ]
-            nei_keys.append(indices_map[keys[-2]])
+            nei_keys.append(keys[-2])
             assert len(keys) == len(nei_keys)
             for i in range(len(keys)):
                 indices += indices_map[keys[i]]
@@ -449,8 +451,7 @@ class Trainer():
                 encoded_target = encoder(x_source)
                 encoded_neighbor = encoder(x_nei)
 
-                loss = contrastive_loss(encoded_target, encoded_neighbor, 0.5)
-                print("c_l", loss)
+                loss = contrastive_loss(encoded_target, encoded_neighbor, 0.5) * 0.1
                 tail_point = int(y[0][1] - y[0][0])
 
                 if tail_point not in self.retrieval_set.keys():
@@ -460,7 +461,7 @@ class Trainer():
                 seqs = retrieval_sub_set[0]
                 ruls = retrieval_sub_set[1]
 
-                for i in range(x.shape[0]):
+                for i in range(x_source.shape[0]):
 
                     # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
                     # encoded_target = encoder(tensor_target)
@@ -495,7 +496,7 @@ class Trainer():
                     loss += loss_fn(predicted_rul,
                                     y[i][0].cuda() / self.rul_factor)
 
-                print("tot_loss", loss)
+                # print("tot_loss", loss)
                 loss /= y.size(0)
                 encoder_optimizer.zero_grad()
                 relationmodel_optimizer.zero_grad()
