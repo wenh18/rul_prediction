@@ -447,6 +447,7 @@ class Trainer():
                 x = x.to(device)
                 x_source = x[:self.batch_size]
                 x_nei = x[self.batch_size:]
+                # print(x_source.shape,x_nei.shape)
                 assert x_source.shape == x_nei.shape
                 encoded_target = encoder(x_source)
                 encoded_neighbor = encoder(x_nei)

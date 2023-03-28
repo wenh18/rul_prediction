@@ -127,7 +127,7 @@ if __name__ == '__main__':
     cap_factor = 1190
     i_low = -2199
     i_upp = 5498
-    batch_size = 32
+    batch_size = 64 # 32
     pkl_dir = './our_data/'
     # pkl_list = os.listdir(pkl_dir)
     # pkl_list = sorted(pkl_list, key=lambda x: int(x.split('-')[0]) * 10 + int(x[-5]))
@@ -389,7 +389,7 @@ if __name__ == '__main__':
             scale_ratios=args.scale_ratios,
             except_ratios=args.except_ratios,
             data_aug_scale_ratios=data_aug_scale_ratios,
-            batch_size=args.batch_size)
+            batch_size=batch_size)
         model, train_loss, valid_loss, total_loss = trainer.train(
             train_loader,
             valid_loader,
