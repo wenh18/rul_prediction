@@ -472,16 +472,26 @@ class Trainer():
                 retrieval_set_keys = list(self.retrieval_set.keys())
                 key_idx = retrieval_set_keys.index(tail_point)
                 offset = 1
-                while len(retrieval_sub_set) < x_source.shape[0]:
-                    if key_idx > 0:
-                        retrieval_sub_set += self.retrieval_set[
-                            retrieval_set_keys[key_idx - offset]]
-                    if len(retrieval_sub_set) >= x_source.shape[0]:
-                        break
-                    if key_idx < len(retrieval_set_keys) - 1:
-                        retrieval_sub_set += self.retrieval_set[
-                            retrieval_set_keys[key_idx + offset]]
-                    offset += 1
+                retrieval_count = retrieval_sub_set[0].shape[0]
+                if retrieval_count < x_source.shape[0]:
+                    while retrieval_count < x_source.shape[0]:
+                        if key_idx > 0:
+                            before_nei = self.retrieval_set[retrieval_set_keys[
+                                key_idx - offset]]
+                            for i in range(len(retrieval_sub_set)):
+                                retrieval_sub_set[i] = np.vstack(
+                                    (retrieval_sub_set[i], before_nei[i]))
+                            retrieval_count += before_nei[0].shape[0]
+                        if retrieval_count >= x_source.shape[0]:
+                            break
+                        if key_idx < len(retrieval_set_keys) - 1:
+                            next_nei = self.retrieval_set[retrieval_set_keys[
+                                key_idx + offset]]
+                            for i in range(len(retrieval_sub_set)):
+                                retrieval_sub_set[i] = np.vstack(
+                                    (retrieval_sub_set[i], next_nei[i]))
+                            retrieval_count += next_nei[0].shape[0]
+                        offset += 1
 
                 seqs = retrieval_sub_set[0]
                 ruls = retrieval_sub_set[1]
