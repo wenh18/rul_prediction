@@ -277,7 +277,7 @@ if __name__ == '__main__':
         valid_lbl = np.hstack((valid_rul, valid_batteryids))
     else:
 
-        train_fea, train_lbl = load_ne.get_train_test_val(
+        train_fea, train_lbl, = load_ne.get_train_test_val(
             series_len=series_lens[0],
             rul_factor=rul_factor,
             dataset_name='trainvalid',
@@ -292,7 +292,7 @@ if __name__ == '__main__':
             seqnum=args.valid_max_len)
         # valid_fea = valid_fea[:valid_max_len]
         # valid_lbl = valid_lbl[:valid_max_len]
-        retrieval_set = load_ne.get_retrieval_seq_v2(
+        retrieval_set = load_ne.get_retrieval_seq_v3(
             rul_factor=rul_factor,
             seq_len=seq_len,
             seriesnum=5000,
@@ -358,6 +358,7 @@ if __name__ == '__main__':
         #     emb_dropout=0.1
         # )
         # weights_init(encoder)
+        # print("train_fea.shape[2]", train_fea.shape[2])
         encoder = lstm_encoder(indim=train_fea.shape[2],
                                hiddendim=args.lstm_hidden,
                                fcdim=args.fc_hidden,

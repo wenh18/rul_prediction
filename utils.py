@@ -156,11 +156,15 @@ class SeqSampler(Sampler):
             label: seq, feas [rul,len,num]
         '''
         indices_map = {}
+        features = self.data.tensors[0]
         labels = self.data.tensors[1]
-        for i in range(labels.shape[0]):
-            rul = labels[i][0]  # tail rul
-            tot_seq_len = labels[i][1]
-            pos = int((tot_seq_len - rul).item())
+        for i in range(features.shape[0]):
+            tail_dq = features[i][-1][-1]
+            origin_dq = features[i][-1][0]
+            # rul = labels[i][0]  # tail rul
+            # tot_seq_len = labels[i][1]
+            # pos = int((tot_seq_len - rul).item())
+            pos = '%.3f' % (tail_dq / origin_dq)
             if pos in indices_map.keys():
                 indices_map[pos].append(i)
             else:
@@ -263,7 +267,8 @@ class Trainer():
         # self.retrieval_set = self.scale_full_seqs_v2(retrieval_set,
         #                                              data_aug_scale_ratios,
         #                                              rulfactor)
-        self.retrieval_set = retrieval_set
+        self.retrieval_set = dict(
+            sorted(retrieval_set.items(), key=lambda x: float(x[0])))
 
         # self.retrieval_feas, self.retreival_ruls = self.get_retrieval_parts(
         #     selected_full_seqs=self.retrieval_set, target_part_len=default_targemt_seq_len)
@@ -453,12 +458,31 @@ class Trainer():
 
                 loss = contrastive_loss(encoded_target, encoded_neighbor,
                                         0.5) * 0.1
-                tail_point = int(y[0][1] - y[0][0])
+
+                # print(x.shape, y.shape)
+                # for i in range(x.shape[0]):
+                #     print('%.3f' % (x[i][-1][0] / x[i][-1][-1]))
+                # tail_point = int(y[0][1] - y[0][0])
+                tail_point = '%.3f' % (x[-1][-1][0] / x[-1][-1][-1])
 
                 if tail_point not in self.retrieval_set.keys():
                     print(f"No key {tail_point}")
                     continue
                 retrieval_sub_set = self.retrieval_set[tail_point]
+                retrieval_set_keys = list(self.retrieval_set.keys())
+                key_idx = retrieval_set_keys.index(tail_point)
+                offset = 1
+                while len(retrieval_sub_set) < x_source.shape[0]:
+                    if key_idx > 0:
+                        retrieval_sub_set += self.retrieval_set[
+                            retrieval_set_keys[key_idx - offset]]
+                    if len(retrieval_sub_set) >= x_source.shape[0]:
+                        break
+                    if key_idx < len(retrieval_set_keys) - 1:
+                        retrieval_sub_set += self.retrieval_set[
+                            retrieval_set_keys[key_idx + offset]]
+                    offset += 1
+
                 seqs = retrieval_sub_set[0]
                 ruls = retrieval_sub_set[1]
 
@@ -467,6 +491,7 @@ class Trainer():
                     # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
                     # encoded_target = encoder(tensor_target)
                     tensor_source = torch.Tensor(seqs).to(device)
+                    print("seq", tensor_source.shape)
                     encoded_source = encoder(tensor_source)
 
                     if encoded_source.size() != encoded_target[i].size():
