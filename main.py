@@ -390,7 +390,7 @@ if __name__ == '__main__':
             scale_ratios=args.scale_ratios,
             except_ratios=args.except_ratios,
             data_aug_scale_ratios=data_aug_scale_ratios,
-            batch_size=args.batch_size)
+            batch_size=batch_size)
         model, train_loss, valid_loss, total_loss = trainer.train(
             train_loader,
             valid_loader,

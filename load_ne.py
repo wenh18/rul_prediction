@@ -310,7 +310,7 @@ def get_retrieval_seq_v3(scale_ratios,
                 if tail >= len(A_rul):
                     break
                 tail_discharge_cap = all_fea[tail][0]
-                soh = "%.3f" % (tail_discharge_cap / max_discharge_cap)
+                soh = "%.4f" % (tail_discharge_cap / max_discharge_cap)
                 # soh = round(tail_discharge_cap / max_discharge_cap, 3)
 
                 feas = all_fea[start:tail]

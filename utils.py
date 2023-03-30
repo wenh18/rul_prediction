@@ -164,7 +164,7 @@ class SeqSampler(Sampler):
             # rul = labels[i][0]  # tail rul
             # tot_seq_len = labels[i][1]
             # pos = int((tot_seq_len - rul).item())
-            pos = '%.3f' % (tail_dq / origin_dq)
+            pos = '%.4f' % (tail_dq / origin_dq)
             if pos in indices_map.keys():
                 indices_map[pos].append(i)
             else:
@@ -461,26 +461,30 @@ class Trainer():
 
                 # print(x.shape, y.shape)
                 # for i in range(x.shape[0]):
-                #     print('%.3f' % (x[i][-1][0] / x[i][-1][-1]))
+                #     print('%.4f' % (x[i][-1][0] / x[i][-1][-1]))
                 # tail_point = int(y[0][1] - y[0][0])
-                tail_point = '%.3f' % (x[-1][-1][0] / x[-1][-1][-1])
+                tail_point = '%.4f' % (x[-1][-1][0] / x[-1][-1][-1])
 
                 if tail_point not in self.retrieval_set.keys():
                     print(f"No key {tail_point}")
                     continue
                 retrieval_sub_set = self.retrieval_set[tail_point]
+                # retrieval_sub_set[3] = retrieval_sub_set[3].reshape(-1,1)
+                # print(len(retrieval_sub_set[3].shape),type(retrieval_sub_set[3]))
+                # assert 0 == 1
                 retrieval_set_keys = list(self.retrieval_set.keys())
                 key_idx = retrieval_set_keys.index(tail_point)
                 offset = 1
                 retrieval_count = retrieval_sub_set[0].shape[0]
+                # print(retrieval_count)
                 if retrieval_count < x_source.shape[0]:
                     while retrieval_count < x_source.shape[0]:
                         if key_idx > 0:
                             before_nei = self.retrieval_set[retrieval_set_keys[
                                 key_idx - offset]]
                             for i in range(len(retrieval_sub_set)):
-                                retrieval_sub_set[i] = np.vstack(
-                                    (retrieval_sub_set[i], before_nei[i]))
+                                retrieval_sub_set[i] = np.concatenate(
+                                    (retrieval_sub_set[i], before_nei[i]),axis=0)
                             retrieval_count += before_nei[0].shape[0]
                         if retrieval_count >= x_source.shape[0]:
                             break
@@ -488,8 +492,8 @@ class Trainer():
                             next_nei = self.retrieval_set[retrieval_set_keys[
                                 key_idx + offset]]
                             for i in range(len(retrieval_sub_set)):
-                                retrieval_sub_set[i] = np.vstack(
-                                    (retrieval_sub_set[i], next_nei[i]))
+                                retrieval_sub_set[i] = np.concatenate(
+                                    (retrieval_sub_set[i], next_nei[i]),axis=0)
                             retrieval_count += next_nei[0].shape[0]
                         offset += 1
 
@@ -501,7 +505,7 @@ class Trainer():
                     # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
                     # encoded_target = encoder(tensor_target)
                     tensor_source = torch.Tensor(seqs).to(device)
-                    print("seq", tensor_source.shape)
+                    # print("seq", tensor_source.shape)
                     encoded_source = encoder(tensor_source)
 
                     if encoded_source.size() != encoded_target[i].size():
