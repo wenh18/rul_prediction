@@ -459,52 +459,47 @@ class Trainer():
                 loss = contrastive_loss(encoded_target, encoded_neighbor,
                                         0.5) * 0.1
 
-                # print(x.shape, y.shape)
-                # for i in range(x.shape[0]):
-                #     print('%.4f' % (x[i][-1][0] / x[i][-1][-1]))
-                # tail_point = int(y[0][1] - y[0][0])
                 tail_point = '%.4f' % (x[-1][-1][0] / x[-1][-1][-1])
 
                 if tail_point not in self.retrieval_set.keys():
                     print(f"No key {tail_point}")
                     continue
                 retrieval_sub_set = self.retrieval_set[tail_point]
-                # retrieval_sub_set[3] = retrieval_sub_set[3].reshape(-1,1)
-                # print(len(retrieval_sub_set[3].shape),type(retrieval_sub_set[3]))
-                # assert 0 == 1
-                retrieval_set_keys = list(self.retrieval_set.keys())
-                key_idx = retrieval_set_keys.index(tail_point)
-                offset = 1
-                retrieval_count = retrieval_sub_set[0].shape[0]
+                # retrieval_set_keys = list(self.retrieval_set.keys())
+                # key_idx = retrieval_set_keys.index(tail_point)
+                # offset = 1
+                # retrieval_count = retrieval_sub_set[0].shape[0]
                 # print(retrieval_count)
-                if retrieval_count < x_source.shape[0]:
-                    while retrieval_count < x_source.shape[0]:
-                        if key_idx > 0:
-                            before_nei = self.retrieval_set[retrieval_set_keys[
-                                key_idx - offset]]
-                            for i in range(len(retrieval_sub_set)):
-                                retrieval_sub_set[i] = np.concatenate(
-                                    (retrieval_sub_set[i], before_nei[i]),axis=0)
-                            retrieval_count += before_nei[0].shape[0]
-                        if retrieval_count >= x_source.shape[0]:
-                            break
-                        if key_idx < len(retrieval_set_keys) - 1:
-                            next_nei = self.retrieval_set[retrieval_set_keys[
-                                key_idx + offset]]
-                            for i in range(len(retrieval_sub_set)):
-                                retrieval_sub_set[i] = np.concatenate(
-                                    (retrieval_sub_set[i], next_nei[i]),axis=0)
-                            retrieval_count += next_nei[0].shape[0]
-                        offset += 1
+                # if retrieval_count < x_source.shape[0]:
+                    # while retrieval_count < x_source.shape[0]:
+                        # if key_idx > 0:
+                            # before_nei = self.retrieval_set[retrieval_set_keys[
+                                # key_idx - offset]]
+                            # for i in range(len(retrieval_sub_set)):
+                                # retrieval_sub_set[i] = np.concatenate(
+                                    # (retrieval_sub_set[i], before_nei[i]),axis=0)
+                            # retrieval_count += before_nei[0].shape[0]
+                        # if retrieval_count >= x_source.shape[0]:
+                            # break
+                        # if key_idx < len(retrieval_set_keys) - 1:
+                            # next_nei = self.retrieval_set[retrieval_set_keys[
+                                # key_idx + offset]]
+                            # for i in range(len(retrieval_sub_set)):
+                                # retrieval_sub_set[i] = np.concatenate(
+                                    # (retrieval_sub_set[i], next_nei[i]),axis=0)
+                            # retrieval_count += next_nei[0].shape[0]
+                        # offset += 1
 
-                seqs = retrieval_sub_set[0]
-                ruls = retrieval_sub_set[1]
+                # print(retrieval_sub_set[0].shape, retrieval_sub_set[1].shape, x.shape)
+                seqs = x
+                ruls = y
 
                 for i in range(x_source.shape[0]):
-
+                    new_seqs = torch.cat((seqs[:i], seqs[i+1:]), dim=0)
+                    new_ruls = torch.cat((ruls[:i], ruls[i+1:]), dim=0)
                     # tensor_target = x[batch_battery_idx].unsqueeze(dim=0)#.to(device)
                     # encoded_target = encoder(tensor_target)
-                    tensor_source = torch.Tensor(seqs).to(device)
+                    tensor_source = torch.Tensor(new_seqs).to(device)
                     # print("seq", tensor_source.shape)
                     encoded_source = encoder(tensor_source)
 
@@ -522,7 +517,7 @@ class Trainer():
                     all_scores = F.softmax(relation_scores, dim=0)
                     all_scores = all_scores.unsqueeze(dim=0)
 
-                    all_ruls = torch.Tensor(ruls).cuda()
+                    all_ruls = torch.Tensor(new_ruls).cuda()
                     all_ruls = all_ruls.reshape(-1, 1)
 
                     all_ruls /= self.rul_factor
